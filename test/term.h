@@ -17,7 +17,13 @@ namespace smt
       {std::cout << "base destructor" << std::endl;};
     void inc() {};
     void dec() {};
+    bool operator==(TermAbs& other) const
+    {
+     if typeid(*this) != typeid(other) return false;
+     return equal(other);
+    }
     virtual std::size_t hash() const = 0;
+    virtual bool equal(TermAbs& absterm) const = 0;
     //virtual bool operator==(const TermAbs& t) const = 0;
     // virtual std::size_t hash() const = 0;
     // virtual vector< std::unique_ptr<TermAbs> > getChildren();
