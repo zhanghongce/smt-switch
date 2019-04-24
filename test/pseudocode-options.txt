@@ -1,0 +1,33 @@
+1. Abstract term class, shared pointers
+===============================================================
+
+class TermAbs; // implemented by solvers
+
+using Term = shared_ptr<TermAbs>;
+
+
+
+
+2. Abstract term class, wrapper class for reference counting
+===============================================================
+
+class TermAbs; // implemented by solvers
+TermAbs::inc()
+TermAbs::dec()
+TermAbs::hash()
+TermAbs::term_equal() // used to check equality
+
+class Term:
+      TermAbs * term
+      // on copy, increment with term->inc()
+      // on destructor, decrement with term->dec()
+
+
+// question: when to delete term?
+//   e.g. if we have BoolectorTerm which wraps a BoolectorNode*
+//   then when all references are released, we should delete the BoolectorTerm as well
+
+
+3. Templates
+===============================================================
+Solver<CVC4Term, CVC4Sort> slv;
