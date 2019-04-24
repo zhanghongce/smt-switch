@@ -3,6 +3,7 @@
 
 //#include "sort.h"
 #include <iostream>
+#include <memory>
 
 namespace smt
 {
@@ -20,6 +21,7 @@ namespace smt
     // unless we make it a friend (which would be strange for CVC4)
     /* Should return true iff the terms are identical */
     virtual bool term_equal(TermAbs* absterm) const = 0;
+    virtual std::unique_ptr<TermAbs> clone() const = 0;
     // virtual vector< std::unique_ptr<TermAbs> > getChildren();
     // not sure if these are necessary
     // virtual void delete() = 0;
@@ -57,8 +59,6 @@ class Term
   Term(Term&& t) { swap(*this, t); };
   ~Term()
   {
-    // FIXME: Is this right or should we guarantee there are no nullptrs?
-    std::cout << "destructor!" << std::endl;
     if (term) term->dec();
   };
   Term& operator=(Term t)

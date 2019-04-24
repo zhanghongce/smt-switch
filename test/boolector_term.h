@@ -30,6 +30,10 @@ class BoolectorTerm : public TermAbs
     BoolectorTerm* other = static_cast<BoolectorTerm*>(absterm);
     return boolector_get_node_id(this->btor, this->node) == boolector_get_node_id(other->btor, other->node);
   }
+  std::unique_ptr<TermAbs> clone() const override
+  {
+    return std::unique_ptr<TermAbs>(new BoolectorTerm(this->btor, this->node));
+  }
  private:
   Btor * btor;
   BoolectorNode * node;

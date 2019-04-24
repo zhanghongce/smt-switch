@@ -6,6 +6,12 @@ main: unit-tests.cpp
 main-debug: unit-tests.cpp
 	$(CXX) -g -std=c++17 -o unit-tests.out -I/usr/include/c++/8/ unit-tests.cpp /home/makaim/repos/boolector/deps/btor2tools/build/btor2parser.o /usr/local/lib/libboolector.a /home/makaim/repos/boolector/deps/lingeling/liblgl.a -lm -lpthread -lcvc4
 
+term_wrapper_test: term_wrapper_test.cpp
+	$(CXX) -std=c++17 -o term_wrapper_test.out term_wrapper_test.cpp /home/makaim/repos/boolector/deps/btor2tools/build/btor2parser.o /usr/local/lib/libboolector.a /home/makaim/repos/boolector/deps/lingeling/liblgl.a -lm -lpthread
+
+term_sptr_test: term_sptr_test.cpp
+	$(CXX) -std=c++17 -o term_sptr_test.out term_sptr_test.cpp /home/makaim/repos/boolector/deps/btor2tools/build/btor2parser.o /usr/local/lib/libboolector.a /home/makaim/repos/boolector/deps/lingeling/liblgl.a -lm -lpthread
+
 two_base_destructors: term_impl.cpp two_base_destructors.cpp
 	$(CXX) -std=c++17 term_impl.cpp two_base_destructors.cpp -o test.out -lcvc4
 
