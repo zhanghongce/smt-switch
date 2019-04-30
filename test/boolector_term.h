@@ -25,9 +25,9 @@ class BoolectorTerm : public TermAbs
   }
   // TODO: check if this is okay -- probably not
   std::size_t hash() const { return (std::size_t) boolector_get_node_id(btor, node); };
-  bool term_equal(TermAbs* absterm) const override
+  bool term_equal(const std::unique_ptr<TermAbs>& absterm) const override
   {
-    BoolectorTerm* other = static_cast<BoolectorTerm*>(absterm);
+    BoolectorTerm* other = static_cast<BoolectorTerm*>(absterm.get());
     return boolector_get_node_id(this->btor, this->node) == boolector_get_node_id(other->btor, other->node);
   }
   std::unique_ptr<TermAbs> clone() const override

@@ -20,7 +20,7 @@ namespace smt
     // it would be nice to make this private, but then can't be called by Term
     // unless we make it a friend (which would be strange for CVC4)
     /* Should return true iff the terms are identical */
-    virtual bool term_equal(TermAbs* absterm) const = 0;
+    virtual bool term_equal(const std::unique_ptr<TermAbs>& absterm) const = 0;
     virtual std::unique_ptr<TermAbs> clone() const = 0;
     // virtual vector< std::unique_ptr<TermAbs> > getChildren();
     // not sure if these are necessary
@@ -53,17 +53,21 @@ class Term
   // TODO: remove null constructor
   // null constructor -- don't keep this! unsafe
   Term() : term(nullptr) {};
-  Term(TermAbs* t) : term(t) {};
-  Term(const Term& t) { term = t.term; t.term->inc(); };
+  Term(std::unique_ptr<TermAbs> t) : term(std::move(t)) {};
+  Term(const Term& t) { term = t.term->clone(); t.term->inc(); };
   // not sure if we need a move constructor
-  Term(Term&& t) { swap(*this, t); };
+  Term(Term&& t) { term = std::move(t.term); };
+  // Term(Term&& t) { swap(*this, t); }; // this was using the swap idioms
   ~Term()
   {
     if (term) term->dec();
   };
   Term& operator=(Term t)
     {
-     swap(*this, t);
+     term = t.term->clone();
+     term->inc();
+     // used to have copy and swap idiom, but now we need to allocate memory
+     //swap(*this, t);
      // TODO: Verify that we don't need inc here, already happened in copy constructor
      //term->inc();
      return *this;
@@ -80,7 +84,7 @@ class Term
   };
   // TODO: remove this
   bool isNull() { return (term == nullptr); };
-  virtual std::size_t hash() const { return term->hash(); } ;
+  std::size_t hash() const { return term->hash(); } ;
   /* std::vector<Term> children() const */
   /* { */
   /*   std::vector<Term> c; */
@@ -94,7 +98,7 @@ class Term
   // debugging
  private:
   // TODO: Make this a unique_ptr
-  TermAbs* term;
+  std::unique_ptr<TermAbs> term;
 };
 }
 
