@@ -62,7 +62,7 @@ class AbsSmtSolver
    * @param t the term to get the value of
    * @return a value term
    */
-  virtual Term get_value(Term& t) const = 0;
+  virtual Term get_value(const Term& t) const = 0;
 
   // virtual bool check_sat_assuming() const = 0;
 

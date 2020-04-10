@@ -262,7 +262,7 @@ void BoolectorSolver::push(uint64_t num) { boolector_push(btor, num); }
 
 void BoolectorSolver::pop(uint64_t num) { boolector_pop(btor, num); }
 
-Term BoolectorSolver::get_value(Term & t) const
+Term BoolectorSolver::get_value(const Term & t) const
 {
   Term result;
   std::shared_ptr<BoolectorTerm> bt =

@@ -323,7 +323,7 @@ void CVC4Solver::pop(uint64_t num)
   }
 }
 
-Term CVC4Solver::get_value(Term & t) const
+Term CVC4Solver::get_value(const Term & t) const
 {
   try
   {
