@@ -483,10 +483,10 @@ Term BoolectorSolver::make_symbol(const std::string name, const Sort & sort)
   auto pos = symbol_names.find(name);
   if (pos != symbol_names.end())
   {
-    //if (pos->second->get_sort() == sort)
-    //  return pos->second;
-    // else
-    throw IncorrectUsageException("symbol " + name + " has already been used.");
+    if (pos->second->get_sort() == sort)
+      return pos->second;
+    else
+      throw IncorrectUsageException("symbol " + name + " has already been used.");
   }
 
   std::shared_ptr<BoolectorSortBase> bs =
