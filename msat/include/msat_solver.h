@@ -35,6 +35,7 @@ class MsatSolver : public AbsSmtSolver
   MsatSolver & operator=(const MsatSolver &) = delete;
   ~MsatSolver()
   {
+    name_symbol_map_.clear();
     // Note: even with this, mathsat leaks
     // a program that just creates a msat_env leaks
     //  -- be careful, valgrind won't report leaks on statically compiled
