@@ -102,6 +102,32 @@ std::vector<SolverEnum> available_int_solver_enums()
   return int_solvers;
 }
 
+std::vector<SolverEnum> available_constarr_solver_enums()
+{
+  std::vector<SolverEnum> arr_solvers;
+  for (auto se : solver_enums)
+  {
+    if (se != YICES2)
+    {
+      arr_solvers.push_back(se);
+    }
+  }
+  return arr_solvers;
+}
+
+std::vector<SolverEnum> available_full_transfer_solver_enums()
+{
+  std::vector<SolverEnum> solvers;
+  for (auto se : available_termiter_solver_enums())
+  {
+    if (se != BTOR)
+    {
+      solvers.push_back(se);
+    }
+  }
+  return solvers;
+}
+
 std::ostream & operator<<(std::ostream & o, SolverEnum e)
 {
   switch (e)
