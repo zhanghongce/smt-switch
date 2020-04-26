@@ -96,6 +96,7 @@ class MsatSolver : public AbsSmtSolver
   msat_env env;
   bool valid_model;
   std::string logic;
+  std::unordered_map<std::string, smt::Term> name_symbol_map_;
 };
 
 // Interpolating Solver

@@ -526,7 +526,13 @@ Term MsatSolver::make_term(const Term & val, const Sort & sort) const
 }
 
 Term MsatSolver::make_symbol(const string name, const Sort & sort)
-{
+{ 
+  auto pos = name_symbol_map_.find(name);
+  if (pos != name_symbol_map_.end()) {
+    if ( pos->second->get_sort() == sort)
+      return pos->second;
+  } // otherwise we use the old way to report error
+
   msat_decl decl = msat_find_decl(env, name.c_str());
   if (!MSAT_ERROR_DECL(decl))
   {
@@ -542,7 +548,9 @@ Term MsatSolver::make_symbol(const string name, const Sort & sort)
 
   if (sort->get_sort_kind() == FUNCTION)
   {
-    return Term(new MsatTerm(env, decl));
+    Term ret(new MsatTerm(env, decl));
+    name_symbol_map_.insert(std::make_pair(name, ret));
+    return ret;
   }
   else
   {
@@ -551,7 +559,9 @@ Term MsatSolver::make_symbol(const string name, const Sort & sort)
     {
       throw InternalSolverException("Got error term.");
     }
-    return Term(new MsatTerm(env, res));
+    Term ret(new MsatTerm(env, res));
+    name_symbol_map_.insert(std::make_pair(name, ret));
+    return ret;
   }
 }
 
