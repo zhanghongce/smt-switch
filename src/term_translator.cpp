@@ -128,7 +128,105 @@ Term TermTranslator::transfer_term(const Term & term)
   }
 
   return cache[term];
-}
+} // TermTranslator::transfer_term
+
+Term TermTranslator::transfer_term(const Term & term, const std::unordered_map<std::string, smt::Term> & symbols ) 
+{
+  if (cache.find(term) != cache.end())
+  {
+    return cache.at(term);
+  }
+
+  TermVec to_visit{ term };
+  TermVec cached_children;
+  Term t;
+  Sort s;
+  while (to_visit.size())
+  {
+    t = to_visit.back();
+    to_visit.pop_back();
+
+    if (cache.find(t) == cache.end())
+    {
+      if (t->is_symbolic_const())
+      {
+        s = transfer_sort(t->get_sort());
+        std::string name = t->to_string();
+        auto pos = symbols.find(name);
+        if (pos == symbols.end()) {
+          if (name.at(0) == '|' && name.back() == '|')
+            pos = symbols.find(name.substr(1,name.length()-2));
+        }
+        if (pos != symbols.end())
+          cache[t] = pos->second;
+        else
+          throw IncorrectUsageException ("symbol " + name + " is not " 
+            "defined in the given symbol table.");
+        // cache[t] = solver->make_symbol(t->to_string(), s);
+      }
+      else
+      {
+        // doesn't get updated yet, just marking as visited
+        cache[t] = t;
+        // need to visit it again
+        to_visit.push_back(t);
+        for (auto c : t)
+        {
+          to_visit.push_back(c);
+        }
+      }
+    }
+    else
+    {
+      cached_children.clear();
+      for (auto c : t)
+      {
+        cached_children.push_back(cache.at(c));
+      }
+
+      if (t->is_value())
+      {
+        s = transfer_sort(t->get_sort());
+        if (s->get_sort_kind() == ARRAY)
+        {
+          // special case for const-array
+          Term val = cache.at(*(t->begin()));
+          if (s->get_sort_kind() != ARRAY)
+          {
+            throw SmtException("Expecting array sort but got: "
+                               + s->to_string());
+          }
+          else if (s->get_elemsort() != val->get_sort())
+          {
+            throw SmtException("Expecting element sort but got "
+                               + val->get_sort()->to_string() + " and "
+                               + s->to_string());
+          }
+          cache[t] = solver->make_term(val, s);
+        }
+        else
+        {
+          cache[t] = value_from_smt2(t->to_string(), s);
+        }
+      }
+      else if (cached_children.size())
+      {
+        cache[t] = solver->make_term(t->get_op(), cached_children);
+      }
+      else if (t->is_symbolic_const())
+      {
+        // already created symbol and added to cache
+        continue;
+      }
+      else
+      {
+        throw SmtException("Can't transfer term: " + t->to_string());
+      }
+    }
+  }
+
+  return cache[term];
+} // TermTranslator::transfer_term
 
 Term TermTranslator::value_from_smt2(const std::string val,
                                      const Sort sort) const

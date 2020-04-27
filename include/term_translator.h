@@ -15,6 +15,7 @@ class TermTranslator
   TermTranslator(SmtSolver & s) : solver(s) {}
   Sort transfer_sort(const Sort & sort);
   Term transfer_term(const Term & term);
+  Term transfer_term(const Term & term, const std::unordered_map<std::string, smt::Term> & symbols );
   /* Returns reference to cache -- can be used to populate with symbols */
   UnorderedTermMap & get_cache() { return cache; };
 
