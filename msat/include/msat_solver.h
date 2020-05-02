@@ -103,6 +103,7 @@ class MsatSolver : public AbsSmtSolver
 // Interpolating Solver
 class MsatInterpolatingSolver : public MsatSolver
 {
+  using MsatInterpolatorConfiguration = Configurations::MsatInterpolatorConfiguration;
  public:
   MsatInterpolatingSolver() {}
   MsatInterpolatingSolver(const MsatInterpolatingSolver &) = delete;
@@ -113,12 +114,27 @@ class MsatInterpolatingSolver : public MsatSolver
     cfg = msat_create_config();
     msat_set_option(cfg, "theory.bv.eager", "false");
     msat_set_option(cfg, "theory.bv.bit_blast_mode", "0");
+    msat_set_option(cfg, "theory.bv.interpolation_mode", "0");
     msat_set_option(cfg, "interpolation", "true");
     // TODO: decide if we should add this
     // msat_set_option(cfg, "theory.eq_propagation", "false");
     env = msat_create_env(cfg);
     valid_model = false;
   }
+  virtual void setup_env(const MsatInterpolatorConfiguration & _cfg)
+  {
+    cfg = msat_create_config();
+    msat_set_option(cfg, "theory.bv.eager", "false");
+    msat_set_option(cfg, "theory.bv.bit_blast_mode", "0");
+    msat_set_option(cfg, "theory.bv.interpolation_mode", _cfg.interpolation_mode.c_str());
+
+    msat_set_option(cfg, "interpolation", "true");
+    // TODO: decide if we should add this
+    msat_set_option(cfg, "theory.eq_propagation", _cfg.eq_propagation.c_str());
+    env = msat_create_env(cfg);
+    valid_model = false;
+  }
+
   void set_opt(const std::string option, const std::string value) override;
   void assert_formula(const Term & t) override;
   Result check_sat() override;

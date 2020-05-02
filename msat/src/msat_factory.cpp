@@ -14,10 +14,10 @@ SmtSolver MsatSolverFactory::create()
   return s;
 }
 
-SmtSolver MsatSolverFactory::create_interpolating_solver()
+SmtSolver MsatSolverFactory::create_interpolating_solver(const MsatInterpolatorConfiguration & cfg)
 {
   MsatInterpolatingSolver * mis = new MsatInterpolatingSolver();
-  mis->setup_env();
+  mis->setup_env(cfg);
   std::shared_ptr<MsatInterpolatingSolver> s(mis);
   return s;
 }
