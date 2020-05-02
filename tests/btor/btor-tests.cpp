@@ -23,7 +23,7 @@ int main()
   try
   {
     Term x = s->make_symbol("x", bvsort8);
-    // assert(false);
+    assert(false);
   }
   catch (IncorrectUsageException & e)
   {
