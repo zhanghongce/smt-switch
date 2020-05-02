@@ -35,10 +35,6 @@ class BoolectorSolver : public AbsSmtSolver
   BoolectorSolver & operator=(const BoolectorSolver &) = delete;
   ~BoolectorSolver()
   {
-    symbol_names.clear(); // this is necessary,
-    // because the destruction of symbol_names comes later
-    // then the destruction of this object
-    // and at that time, btor has already been deleted
     for (auto elem : array_bases)
     {
       boolector_release(btor, elem.second);

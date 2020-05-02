@@ -522,7 +522,7 @@ Term BoolectorSolver::make_symbol(const std::string name, const Sort & sort)
 
   // note: giving the symbol a null Op
   Term term(new BoolectorTerm(btor, n));
-  symbol_names.insert(std::make_pair(name,term));
+  symbol_names.insert(std::make_pair(name,(smt::Term) NULL));
   return term;
 }
 
