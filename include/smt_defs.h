@@ -64,4 +64,3 @@ using Datatype = std::shared_ptr<AbsDatatype>;
 
 }  // namespace smt
 
-#endif
