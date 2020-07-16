@@ -1,3 +1,19 @@
+/*********************                                                        */
+/*! \file test-int.cpp
+** \verbatim
+** Top contributors (to current version):
+**   Makai Mann
+** This file is part of the smt-switch project.
+** Copyright (c) 2020 by the authors listed in the file AUTHORS
+** in the top-level source directory) and their institutional affiliations.
+** All rights reserved.  See the file LICENSE in the top-level source
+** directory for licensing information.\endverbatim
+**
+** \brief Tests for theory of integers.
+**
+**
+**/
+
 #include <utility>
 #include <vector>
 
@@ -16,7 +32,7 @@ class IntTests : public ::testing::Test,
  protected:
   void SetUp() override
   {
-    s = available_solvers().at(GetParam())();
+    s = create_solver(GetParam());
     s->set_opt("produce-models", "true");
     intsort = s->make_sort(INT);
   }
@@ -36,8 +52,9 @@ TEST_P(IntTests, IntDiv)
   ASSERT_EQ(resval, two);
 }
 
-INSTANTIATE_TEST_SUITE_P(ParameterizedSolverIntTests,
-                         IntTests,
-                         testing::ValuesIn(available_int_solver_enums()));
+INSTANTIATE_TEST_SUITE_P(
+    ParameterizedSolverIntTests,
+    IntTests,
+    testing::ValuesIn(filter_solver_enums({ THEORY_INT })));
 
 }  // namespace smt_tests

@@ -84,6 +84,7 @@ cdef extern from "result.h" namespace "smt":
         bint is_unsat() except +
         bint is_unknown() except +
         bint is_null() except +
+        string get_explanation() except+
         string to_string() except+
 
 
@@ -98,6 +99,7 @@ cdef extern from "solver.h" namespace "smt":
         void push(uint64_t num) except +
         void pop(uint64_t num) except +
         c_Term get_value(c_Term& t) except +
+        c_TermVec get_unsat_core() except +
         c_Sort make_sort(const string name, uint64_t arity) except +
         c_Sort make_sort(const c_SortKind sk) except +
         c_Sort make_sort(const c_SortKind sk, uint64_t size) except +
@@ -110,6 +112,7 @@ cdef extern from "solver.h" namespace "smt":
         c_Term make_term(const string val, const c_Sort & sort, uint64_t base) except +
         c_Term make_term(const c_Term & val, const c_Sort & sort) except +
         c_Term make_symbol(const string name, const c_Sort & sort) except +
+        c_Term make_param(const string name, const c_Sort & sort) except +
         c_Term make_term(const c_Op op, const c_TermVec & terms) except +
         void reset() except +
         void reset_assertions() except +

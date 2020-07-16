@@ -1,6 +1,23 @@
+/*********************                                                        */
+/*! \file cvc4_sort.cpp
+** \verbatim
+** Top contributors (to current version):
+**   Makai Mann
+** This file is part of the smt-switch project.
+** Copyright (c) 2020 by the authors listed in the file AUTHORS
+** in the top-level source directory) and their institutional affiliations.
+** All rights reserved.  See the file LICENSE in the top-level source
+** directory for licensing information.\endverbatim
+**
+** \brief CVC4 implementation of AbsSort
+**
+**
+**/
+
 #include "exceptions.h"
 
 #include "cvc4_sort.h"
+#include "cvc4_datatype.h"
 
 namespace smt {
 
@@ -21,14 +38,12 @@ uint64_t CVC4Sort::get_width() const { return sort.getBVSize(); }
 
 Sort CVC4Sort::get_indexsort() const
 {
-  Sort idxsort(new CVC4Sort(sort.getArrayIndexSort()));
-  return idxsort;
+  return std::make_shared<CVC4Sort> (sort.getArrayIndexSort());
 }
 
 Sort CVC4Sort::get_elemsort() const
 {
-  Sort elemsort(new CVC4Sort(sort.getArrayElementSort()));
-  return elemsort;
+  return std::make_shared<CVC4Sort> (sort.getArrayElementSort());
 }
 
 SortVec CVC4Sort::get_domain_sorts() const
@@ -47,15 +62,28 @@ SortVec CVC4Sort::get_domain_sorts() const
 
 Sort CVC4Sort::get_codomain_sort() const
 {
-  Sort s(new CVC4Sort(sort.getFunctionCodomainSort()));
-  return s;
+  return std::make_shared<CVC4Sort> (sort.getFunctionCodomainSort());
 }
+
+std::string CVC4Sort::get_uninterpreted_name() const { return sort.toString(); }
 
 bool CVC4Sort::compare(const Sort s) const
 {
   std::shared_ptr<CVC4Sort> cs = std::static_pointer_cast<CVC4Sort> (s);
   return sort == cs->sort;
 }
+
+Datatype CVC4Sort::get_datatype() const
+{
+  try
+  {
+    return std::make_shared<CVC4Datatype> (sort.getDatatype());
+  } catch (::CVC4::api::CVC4ApiException & e)
+  {
+    throw InternalSolverException(e.what());
+  }
+};
+
 
 SortKind CVC4Sort::get_sort_kind() const
 {
@@ -82,6 +110,14 @@ SortKind CVC4Sort::get_sort_kind() const
   else if (sort.isFunction())
   {
     return FUNCTION;
+  }
+  else if (sort.isUninterpretedSort())
+  {
+    return UNINTERPRETED;
+  }
+  else if (sort.isDatatype())
+  {
+    return DATATYPE;
   }
   else
   {

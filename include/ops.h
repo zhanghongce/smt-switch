@@ -1,8 +1,24 @@
-#ifndef SMT_OPS_H
-#define SMT_OPS_H
+/*********************                                                        */
+/*! \file ops.h
+** \verbatim
+** Top contributors (to current version):
+**   Makai Mann, Clark Barrett
+** This file is part of the smt-switch project.
+** Copyright (c) 2020 by the authors listed in the file AUTHORS
+** in the top-level source directory) and their institutional affiliations.
+** All rights reserved.  See the file LICENSE in the top-level source
+** directory for licensing information.\endverbatim
+**
+** \brief All the builtin operators.
+**
+**
+**/
+
+#pragma once
 
 #include <iostream>
 #include <string>
+#include <utility>
 
 namespace smt {
 
@@ -52,7 +68,6 @@ enum PrimOp
   BVNand,
   BVNor,
   BVXnor,
-  BVComp,
   BVAdd,
   BVSub,
   BVMul,
@@ -64,6 +79,7 @@ enum PrimOp
   BVShl,
   BVAshr,
   BVLshr,
+  BVComp,
   BVUlt,
   BVUle,
   BVUgt,
@@ -83,6 +99,18 @@ enum PrimOp
   /* Array Theory */
   Select,
   Store,
+  /* Quantifiers */
+  // quantifiers only bind a single parameter to simplify term iteration
+  // e.g. the solvers don't align well on the representation unless only one
+  // parameter is bound
+  Forall,  ///< used to bind *one* parameter in a formula with a universal
+           ///< quantifier
+  Exists,  ///< used to bind *one* parameter in a formula with an existential
+           ///< quanifier
+  /* Datatype Theory */
+  Apply_Selector,
+  Apply_Tester,
+  Apply_Constructor,
   /**
      Serves as both the number of ops and a null element for builtin operators.
    */
@@ -108,6 +136,12 @@ struct Op
   uint64_t idx1;
 };
 
+/** Looks up the expected arity of a PrimOp
+ *  @return a tuple with the minimum and maximum
+ *          accepted arity (in that order)
+ */
+std::pair<size_t, size_t> get_arity(PrimOp po);
+
 std::string to_string(PrimOp op);
 bool operator==(Op o1, Op o2);
 bool operator!=(Op o1, Op o2);
@@ -129,4 +163,3 @@ namespace std
     };
 }
 
-#endif

@@ -1,3 +1,19 @@
+/*********************                                                        */
+/*! \file msat_sort.cpp
+** \verbatim
+** Top contributors (to current version):
+**   Makai Mann
+** This file is part of the smt-switch project.
+** Copyright (c) 2020 by the authors listed in the file AUTHORS
+** in the top-level source directory) and their institutional affiliations.
+** All rights reserved.  See the file LICENSE in the top-level source
+** directory for licensing information.\endverbatim
+**
+** \brief MathSAT implementation of AbsSort
+**
+**
+**/
+
 #include "msat_sort.h"
 
 #include "exceptions.h"
@@ -80,7 +96,7 @@ Sort MsatSort::get_indexsort() const
   msat_type idx_type;
   if (msat_is_array_type(env, type, &idx_type, nullptr))
   {
-    return Sort(new MsatSort(env, idx_type));
+    return std::make_shared<MsatSort> (env, idx_type);
   }
   else
   {
@@ -93,7 +109,7 @@ Sort MsatSort::get_elemsort() const
   msat_type elem_type;
   if (msat_is_array_type(env, type, nullptr, &elem_type))
   {
-    return Sort(new MsatSort(env, elem_type));
+    return std::make_shared<MsatSort> (env, elem_type);
   }
   else
   {
@@ -120,7 +136,7 @@ SortVec MsatSort::get_domain_sorts() const
       throw InternalSolverException("Got error type");
     }
     // Note: assuming first-order, function can't take function arguments
-    sorts.push_back(Sort(new MsatSort(env, tmp_type)));
+    sorts.push_back(std::make_shared<MsatSort> (env, tmp_type));
   }
   return sorts;
 }
@@ -137,8 +153,19 @@ Sort MsatSort::get_codomain_sort() const
   {
     throw InternalSolverException("Got error type");
   }
-  return Sort(new MsatSort(env, t));
+  return std::make_shared<MsatSort> (env, t);
 }
+
+string MsatSort::get_uninterpreted_name() const
+{
+  string res(msat_type_repr(type));
+  return res;
+}
+
+Datatype MsatSort::get_datatype() const {
+  throw NotImplementedException("get_datatype");
+};
+
 
 bool MsatSort::compare(const Sort s) const
 {
@@ -172,9 +199,21 @@ SortKind MsatSort::get_sort_kind() const
   {
     return FUNCTION;
   }
+  else if (msat_is_fp_type(env, type, nullptr, nullptr))
+  {
+    throw NotImplementedException(
+        "Floating point not implemented for MathSAT yet.");
+  }
+  else if (msat_is_fp_roundingmode_type(env, type))
+  {
+    throw NotImplementedException(
+        "Floating point not implemented for MathSAT yet.");
+  }
   else
   {
-    throw NotImplementedException("Unknown MathSAT type.");
+    // no way to test if type is a simple type
+    // just process of elimination
+    return UNINTERPRETED;
   }
 }
 

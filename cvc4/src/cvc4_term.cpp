@@ -1,3 +1,19 @@
+/*********************                                                        */
+/*! \file cvc4_term.cpp
+** \verbatim
+** Top contributors (to current version):
+**   Makai Mann
+** This file is part of the smt-switch project.
+** Copyright (c) 2020 by the authors listed in the file AUTHORS
+** in the top-level source directory) and their institutional affiliations.
+** All rights reserved.  See the file LICENSE in the top-level source
+** directory for licensing information.\endverbatim
+**
+** \brief CVC4 implementation of AbsTerm
+**
+**
+**/
+
 #include "assert.h"
 
 #include "api/cvc4cpp.h"
@@ -89,7 +105,13 @@ const std::unordered_map<::CVC4::api::Kind, PrimOp> kind2primop(
       // Indexed Op
       { ::CVC4::api::BITVECTOR_ROTATE_RIGHT, Rotate_Right },
       { ::CVC4::api::SELECT, Select },
-      { ::CVC4::api::STORE, Store } });
+      { ::CVC4::api::STORE, Store },
+      { ::CVC4::api::FORALL, Forall },
+      { ::CVC4::api::EXISTS, Exists },
+      // Datatype
+      { ::CVC4::api::APPLY_CONSTRUCTOR, Apply_Constructor},
+      { ::CVC4::api::APPLY_TESTER, Apply_Tester},
+      { ::CVC4::api::APPLY_SELECTOR, Apply_Selector}});
 
 // struct for hashing
 CVC4::api::TermHashFunction termhash;
@@ -97,34 +119,57 @@ CVC4::api::TermHashFunction termhash;
 /* CVC4TermIter implementation */
 CVC4TermIter & CVC4TermIter::operator=(const CVC4TermIter & it)
 {
-  term_it = it.term_it;
+  term = it.term;
+  pos = it.pos;
   return *this;
 }
 
-void CVC4TermIter::operator++() { term_it++; }
+void CVC4TermIter::operator++() { pos++; }
 
 const Term CVC4TermIter::operator*()
 {
-  Term t(new CVC4Term(*term_it));
-  return t;
+  if (pos == term.getNumChildren()
+      && term.getKind() == ::CVC4::api::Kind::CONST_ARRAY)
+  {
+    return std::make_shared<CVC4Term>(term.getConstArrayBase());
+  }
+  // special-case for BOUND_VAR_LIST -- parameters bound by a quantifier
+  // smt-switch guarantees that the length is only one by construction
+  ::CVC4::api::Term t = term[pos];
+  if (t.getKind() == ::CVC4::api::BOUND_VAR_LIST)
+  {
+    if (t.getNumChildren() != 1)
+    {
+      // smt-switch should only allow binding one parameter
+      // otherwise, we need to flatten arbitrary nestings of quantifiers and
+      // BOUND_VAR_LISTs for term iteration
+      throw InternalSolverException(
+          "Expected exactly one bound variable in CVC4 BOUND_VAR_LIST");
+    }
+    return std::make_shared<CVC4Term>(t[0]);
+  }
+  return std::make_shared<CVC4Term>(t);
 }
 
-TermIterBase * CVC4TermIter::clone() const { return new CVC4TermIter(term_it); }
+TermIterBase * CVC4TermIter::clone() const
+{
+  return new CVC4TermIter(term, pos);
+}
 
 bool CVC4TermIter::operator==(const CVC4TermIter & it)
 {
-  return term_it == it.term_it;
+  return term == it.term && pos == it.pos;
 }
 
 bool CVC4TermIter::operator!=(const CVC4TermIter & it)
 {
-  return term_it != term_it;
+  return term != it.term || pos != it.pos;
 }
 
 bool CVC4TermIter::equal(const TermIterBase & other) const
 {
   const CVC4TermIter & cti = static_cast<const CVC4TermIter &>(other);
-  return term_it == cti.term_it;
+  return term == cti.term && pos == cti.pos;
 }
 
 /* end CVC4TermIter implementation */
@@ -155,7 +200,7 @@ Op CVC4Term::get_op() const
   CVC4::api::Kind cvc4_kind = cvc4_op.getKind();
 
   // special cases
-  if (cvc4_kind == CVC4::api::Kind::STORE_ALL)
+  if (cvc4_kind == CVC4::api::Kind::CONST_ARRAY)
   {
     // constant array is a value in smt-switch
     return Op();
@@ -199,13 +244,25 @@ Op CVC4Term::get_op() const
 
 Sort CVC4Term::get_sort() const
 {
-  Sort s(new CVC4Sort(term.getSort()));
-  return s;
+  return std::make_shared<CVC4Sort> (term.getSort());
+}
+
+bool CVC4Term::is_symbol() const
+{
+  // functions, parameters, and symbolic constants are all symbols
+  ::CVC4::api::Kind k = term.getKind();
+  return (k == ::CVC4::api::CONSTANT || k == ::CVC4::api::VARIABLE);
+}
+
+bool CVC4Term::is_param() const
+{
+  return (term.getKind() == ::CVC4::api::VARIABLE);
 }
 
 bool CVC4Term::is_symbolic_const() const
 {
-  return (term.getKind() == ::CVC4::api::CONSTANT);
+  return (term.getKind() == ::CVC4::api::CONSTANT
+          && !term.getSort().isFunction());
 }
 
 bool CVC4Term::is_value() const
@@ -218,10 +275,10 @@ bool CVC4Term::is_value() const
           || (k == ::CVC4::api::CONST_RATIONAL)
           || (k == ::CVC4::api::CONST_FLOATINGPOINT)
           || (k == ::CVC4::api::CONST_ROUNDINGMODE)
-          || (k == ::CVC4::api::CONST_STRING) || (k == ::CVC4::api::STORE_ALL));
+          || (k == ::CVC4::api::CONST_STRING) || (k == ::CVC4::api::CONST_ARRAY));
 }
 
-std::string CVC4Term::to_string() const { return term.toString(); }
+std::string CVC4Term::to_string() { return term.toString(); }
 
 uint64_t CVC4Term::to_int() const
 {
@@ -256,14 +313,27 @@ uint64_t CVC4Term::to_int() const
 
 /** Iterators for traversing the children
  */
-TermIter CVC4Term::begin()
-{
-  return TermIter(new CVC4TermIter(term.begin()));
-}
+TermIter CVC4Term::begin() { return TermIter(new CVC4TermIter(term, 0)); }
 
 TermIter CVC4Term::end()
 {
-  return TermIter(new CVC4TermIter(term.end()));
+  uint32_t num_children = term.getNumChildren();
+  if (term.getKind() == ::CVC4::api::Kind::CONST_ARRAY)
+  {
+    // base of constant array is the child
+    num_children++;
+  }
+  return TermIter(new CVC4TermIter(term, num_children));
+}
+
+std::string CVC4Term::print_value_as(SortKind sk)
+{
+  if (!is_value())
+  {
+    throw IncorrectUsageException(
+        "Cannot use print_value_as on a non-value term.");
+  }
+  return term.toString();
 }
 
 /* end CVC4Term implementation */

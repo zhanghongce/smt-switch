@@ -1,57 +1,53 @@
+/*********************                                                        */
+/*! \file available_solvers.h
+** \verbatim
+** Top contributors (to current version):
+**   Makai Mann
+** This file is part of the smt-switch project.
+** Copyright (c) 2020 by the authors listed in the file AUTHORS
+** in the top-level source directory) and their institutional affiliations.
+** All rights reserved.  See the file LICENSE in the top-level source
+** directory for licensing information.\endverbatim
+**
+** \brief Convenience functions for testing. Collects the available solvers
+**        and has maps for tagging supported features and filtering solvers
+**        by feature.
+**/
+
 #pragma once
 
 #include <iostream>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 #include "smt_defs.h"
+#include "solver_enums.h"
 
 namespace smt_tests {
 
-typedef ::smt::SmtSolver (*create_solver_fun)(void);
+/** Creates an SmtSolver of the provided type */
+smt::SmtSolver create_solver(smt::SolverEnum se);
 
-enum SolverEnum
-{
-  BTOR = 0,
-  CVC4,
-  MSAT,
-  YICES2
-};
-
-typedef std::unordered_map<SolverEnum, create_solver_fun> CreateSolverFunsMap;
-
-// Create a map from enums to available solver creation functions
-CreateSolverFunsMap available_solvers();
+/** Creates an interpolating SmtSolver of the provided type */
+smt::SmtSolver create_interpolating_solver(smt::SolverEnum se);
 
 // collect all the available solvers
-std::vector<SolverEnum> available_solver_enums();
+std::vector<smt::SolverEnum> available_solver_enums();
 
-// collect all solvers that support term iteration
-std::vector<SolverEnum> available_termiter_solver_enums();
+// collect all the available non-logging solvers
+std::vector<smt::SolverEnum> available_no_logging_solver_enums();
 
-CreateSolverFunsMap available_interpolators();
+// collect all the available logging solvers
+std::vector<smt::SolverEnum> available_logging_solver_enums();
 
-std::vector<SolverEnum> available_interpolator_enums();
+// collect all the available interpolating solvers
+std::vector<smt::SolverEnum> available_interpolator_enums();
 
-std::vector<SolverEnum> available_int_solver_enums();
-
-std::vector<SolverEnum> available_constarr_solver_enums();
-
-std::vector<SolverEnum> available_full_transfer_solver_enums();
-
-std::ostream & operator<<(std::ostream & o, SolverEnum e);
+/** Filter the available solvers by a set of attributes
+ * @return all available solvers that have *all* the attributes
+ */
+std::vector<smt::SolverEnum> filter_solver_enums(
+    const std::unordered_set<smt::SolverAttribute> attributes);
 
 }  // namespace smt_tests
-
-// define hash for older compilers
-namespace std {
-// specialize template
-template <>
-struct hash<smt_tests::SolverEnum>
-{
-  size_t operator()(const smt_tests::SolverEnum se) const
-  {
-    return static_cast<size_t>(se);
-  }
-};
-}  // namespace std

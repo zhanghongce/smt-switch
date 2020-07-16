@@ -1,4 +1,4 @@
-# SMT-Switch
+# Smt-Switch
 A generic C++ API for SMT solving. It provides abstract classes which can be implemented by different SMT solvers.
 
 # Architecture Overview
@@ -17,7 +17,24 @@ The function names are based on SMT-LIB. The general rule is that functions/meth
 * `Zero_Extend`
 * `BVAshr`
 
-Please see the `tests` directory for some example usage.
+Please see this [extended abstract](https://arxiv.org/abs/2007.01374) for more documentation or the `tests` directory for some example usage.
+
+# Creating a Smt-Switch Solver
+To create a Smt-Switch solver through the API, first include the relevant factory header and then use the static `create` method. It takes a single boolean parameter which configures term logging. If passed `false`, the created `SmtSolver` relies on the underlying solver for term traversal and querying a term for the `Sort` or `Op`. If passed `true`, it instantiates a `LoggingSolver` wrapper which keeps track of the `Op`, `Sort` and children of terms as they are created. A `LoggingSolver` wraps all the terms and sorts created through the API. Thus, a `LoggingSolver` always returns a `LoggingTerm`. However, this is invisible to the user and all the objects can be used in the expected way. The logging feature is useful for solvers that alias sorts (for example don't distinguish between booleans and bitvectors of size one) or perform on-the-fly rewriting. The `LoggingSolver` wrapper ensures that the built term has the expected `Op`, `Sort` and children. In other words, the created term is exactly what was built through the API -- it cannot be rewritten or alias the sort. This drastically simplifies transferring between solvers and can be more intuitive than on-the-fly rewriting. Note: the rewriting still happens in the underlying solver, but this is hidden at the Smt-Switch level. Some solvers, such as `Yices2`, rely on the `LoggingSolver` for term traversal. E.g. creating a `Yices2` `SmtSolver` without term logging would not allow term traversal.
+
+Here is an example that creates a solver interface to CVC4:
+```
+#include "smt-switch/cvc4_factory.h"
+
+int main()
+{
+  // create a CVC4Solver without logging
+  smt::SmtSolver s = smt::CVC4SolverFactory::create(false);
+  return 0;
+}
+
+```
+
 
 # Operating Systems
 
@@ -26,11 +43,19 @@ Our `cmake` build system is currently only tested on Ubuntu Bionic and Mac OSX w
 # Solvers
 To setup and install different solvers, first run the `./contrib/setup-<solver>.sh` script which builds position-independent static libraries in the `<solver>` directory. Then you can configure your `cmake` build with the `configure.sh` script. Enable a solver with `./configure.sh --<solver>`. By default only `libsmt-switch.so` is built without any solvers.
 
+Some of the backend solvers have non-BSD compatible licenses. There are no provided setup scripts for these solvers. However, there are instructions for setting up these solvers in `./contrib`. Should you choose to link against these solver libraries, you assume all responsibility for meeting the license requirements of those libraries.
+
 Once you've configured the build system, simply enter the build directory (`./build` by default) and run `make`. Each solver you add produces a `libsmt-switch-<solver>.so` shared object file. Running `make install` installs these libraries and the public header files into the configured prefix (`/usr/local` by default). Note that the header files are put in a directory, e.g. `/usr/local/include/smt-switch`.
 
 ## Currently Supported Solvers
+
+### BSD compatible
+
 * Boolector
 * CVC4
+
+### Non-BSD compatible
+
 * MathSAT
 * Yices2
 

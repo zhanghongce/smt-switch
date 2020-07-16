@@ -1,11 +1,27 @@
-#ifndef SMT_SORT_H
-#define SMT_SORT_H
+/*********************                                                        */
+/*! \file sort.h
+** \verbatim
+** Top contributors (to current version):
+**   Makai Mann, Clark Barrett
+** This file is part of the smt-switch project.
+** Copyright (c) 2020 by the authors listed in the file AUTHORS
+** in the top-level source directory) and their institutional affiliations.
+** All rights reserved.  See the file LICENSE in the top-level source
+** directory for licensing information.\endverbatim
+**
+** \brief Abstract interface for SMT sorts.
+**
+**
+**/
+
+#pragma once
 
 #include <string>
 #include <unordered_set>
 #include <vector>
 
 #include "ops.h"
+#include "datatype.h"
 #include "smt_defs.h"
 
 // Sort needs to have arguments
@@ -23,6 +39,9 @@ enum SortKind
   INT,
   REAL,
   FUNCTION,
+  UNINTERPRETED,
+  DATATYPE,
+
   /** IMPORTANT: This must stay at the bottom.
       It's only use is for sizing the kind2str array
   */
@@ -51,6 +70,8 @@ class AbsSort
   virtual Sort get_elemsort() const = 0;
   virtual std::vector<Sort> get_domain_sorts() const = 0;
   virtual Sort get_codomain_sort() const = 0;
+  virtual std::string get_uninterpreted_name() const = 0;
+  virtual Datatype get_datatype() const = 0;
   virtual bool compare(const Sort sort) const = 0;
   virtual SortKind get_sort_kind() const = 0;
 };
@@ -68,15 +89,21 @@ using UnorderedSortSet = std::unordered_set<Sort>;
 namespace std
 {
 
-  template<>
-  struct hash<smt::Sort>
+// for old compilers
+template <>
+struct hash<smt::SortKind>
+{
+  size_t operator()(const smt::SortKind & sk) const
   {
-    size_t operator()(const smt::Sort & s) const
-    {
-      return s->hash();
-    }
+    return static_cast<std::size_t>(sk);
+  }
+};
+
+template <>
+struct hash<smt::Sort>
+{
+  size_t operator()(const smt::Sort & s) const { return s->hash(); }
   };
 
 }
 
-#endif

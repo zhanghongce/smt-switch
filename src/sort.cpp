@@ -1,23 +1,25 @@
+/*********************                                                        */
+/*! \file sort.cpp
+** \verbatim
+** Top contributors (to current version):
+**   Makai Mann, Clark Barrett
+** This file is part of the smt-switch project.
+** Copyright (c) 2020 by the authors listed in the file AUTHORS
+** in the top-level source directory) and their institutional affiliations.
+** All rights reserved.  See the file LICENSE in the top-level source
+** directory for licensing information.\endverbatim
+**
+** \brief Abstract interface for SMT sorts.
+**
+**
+**/
+
 #include <sstream>
 #include <unordered_map>
 
 #include "exceptions.h"
 #include "sort.h"
 #include "utils.h"
-
-namespace std
-{
-  // specialize the hash template
-  template<>
-  struct hash<smt::SortKind>
-  {
-    size_t operator()(const smt::SortKind sk) const
-    {
-      return static_cast<std::size_t>(sk);
-    }
-  };
-}
-
 
 namespace smt {
 
@@ -27,7 +29,9 @@ const std::unordered_map<SortKind, std::string> sortkind2str(
       { BV, "BV" },
       { INT, "INT" },
       { REAL, "REAL" },
-      { FUNCTION, "FUNCTION" } });
+      { FUNCTION, "FUNCTION" },
+      { UNINTERPRETED, "UNINTERPRETED" },
+      { DATATYPE, "DATATYPE"} });
 
 std::string to_string(SortKind sk)
 {
@@ -95,6 +99,10 @@ std::string AbsSort::to_string() const
     res += get_codomain_sort()->to_string();
     res += ")";
     return res;
+  }
+  else if (sk == UNINTERPRETED)
+  {
+    return get_uninterpreted_name();
   }
   else
   {

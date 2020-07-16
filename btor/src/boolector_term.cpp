@@ -1,3 +1,19 @@
+/*********************                                                        */
+/*! \file boolector_term.cpp
+** \verbatim
+** Top contributors (to current version):
+**   Makai Mann
+** This file is part of the smt-switch project.
+** Copyright (c) 2020 by the authors listed in the file AUTHORS
+** in the top-level source directory) and their institutional affiliations.
+** All rights reserved.  See the file LICENSE in the top-level source
+** directory for licensing information.\endverbatim
+**
+** \brief Boolector implementation of AbsTerm
+**
+**
+**/
+
 #include "boolector_term.h"
 
 // include standard version of open_memstream
@@ -34,7 +50,9 @@ const std::unordered_map<BtorNodeKind, PrimOp> btorkind2primop({
     { BTOR_PARAM_NODE, NUM_OPS_AND_NULL },
     { BTOR_BV_SLICE_NODE, Extract },
     { BTOR_BV_AND_NODE, BVAnd },
-    { BTOR_BV_EQ_NODE, BVComp },
+    // note: could also use BVComp because they're indistinguishable
+    // in Boolector, but expect Equal is more common
+    { BTOR_BV_EQ_NODE, Equal },
     { BTOR_FUN_EQ_NODE, Equal },
     { BTOR_BV_ADD_NODE, BVAdd },
     { BTOR_BV_MUL_NODE, BVMul },
@@ -45,8 +63,8 @@ const std::unordered_map<BtorNodeKind, PrimOp> btorkind2primop({
     { BTOR_BV_UREM_NODE, BVUrem },
     { BTOR_BV_CONCAT_NODE, Concat },
     { BTOR_APPLY_NODE, Apply },
-    // {BTOR_FORALL_NODE}, // TODO: implement later
-    // {BTOR_EXISTS_NODE}, // TODO: implement later
+    { BTOR_FORALL_NODE, Forall },
+    { BTOR_EXISTS_NODE, Exists },
     // {BTOR_LAMBDA_NODE}, // TODO: figure out when/how to use this, hopefully
     // only for quantifiers
     { BTOR_COND_NODE, Ite },
@@ -119,22 +137,13 @@ const Term BoolectorTermIter::operator*()
     throw SmtException("Should never have an args node in children look up");
   }
 
-  // need to increment reference counter, because accessing child doesn't
-  // increment it
-  //  but BoolectorTerm destructor will release it
-  // use real_addr?
-  if (!btor_node_real_addr(res)->ext_refs)
-  {
-    if (btor_node_is_proxy(res))
-    {
-      res = btor_node_get_simplified(btor, res);
-    }
-    btor_node_inc_ext_ref_counter(btor, res);
-  }
+  // increment internal reference counter
+  res = btor_node_copy(btor, res);
+  // increment external reference counter
+  btor_node_inc_ext_ref_counter(btor, res);
 
-  BoolectorNode * node = boolector_copy(btor, BTOR_EXPORT_BOOLECTOR_NODE(res));
-  Term t(new BoolectorTerm(btor, node));
-  return t;
+  BoolectorNode * node = BTOR_EXPORT_BOOLECTOR_NODE(res);
+  return std::make_shared<BoolectorTerm> (btor, node);
 };
 
 TermIterBase * BoolectorTermIter::clone() const
@@ -178,8 +187,6 @@ BoolectorTerm::BoolectorTerm(Btor * b, BoolectorNode * n)
     bn = btor_node_real_addr(btor_node_get_simplified(btor, bn));
   }
   negated = (((((uintptr_t)node) % 2) != 0) && bn->kind != BTOR_BV_CONST_NODE);
-  is_sym =
-      !negated && ((bn->kind == BTOR_VAR_NODE) || (bn->kind == BTOR_UF_NODE));
 }
 
 BoolectorTerm::~BoolectorTerm()
@@ -260,9 +267,30 @@ Sort BoolectorTerm::get_sort() const
   return sort;
 }
 
+bool BoolectorTerm::is_symbol() const
+{
+  // functions, parameters, and symbolic constants are all symbols
+  auto bkind = bn->kind;
+  return !negated
+         && ((bkind == BTOR_VAR_NODE) || (bkind == BTOR_UF_NODE)
+             || (bkind == BTOR_PARAM_NODE));
+}
+
+bool BoolectorTerm::is_param() const
+{
+  return !negated && (bn->kind == BTOR_PARAM_NODE);
+}
+
 bool BoolectorTerm::is_symbolic_const() const
 {
-  return is_sym;
+  // symbolic constant if it's a symbol but not a function
+  // or a parameter
+  // Important Note: Arrays are functions in boolector
+  // Thus, we need to check whether it's a function or an array
+  // because arrays should still be considered symbolic constants
+  // in smt-switch
+  bool is_fun = boolector_is_fun(btor, node) && !boolector_is_array(btor, node);
+  return !is_fun && !is_param() && is_symbol();
 }
 
 bool BoolectorTerm::is_value() const
@@ -273,7 +301,7 @@ bool BoolectorTerm::is_value() const
   return res;
 }
 
-std::string BoolectorTerm::to_string() const
+std::string BoolectorTerm::to_string()
 {
   std::string sres;
 
@@ -353,6 +381,7 @@ TermIter BoolectorTerm::begin()
   if (btor_node_is_proxy(bn))
   {
     bn = btor_node_get_simplified(btor, bn);
+    bn = btor_node_real_addr(bn);
   }
 
   children.clear();
@@ -443,6 +472,43 @@ TermIter BoolectorTerm::end()
     // vector doesn't matter for end
     return TermIter(
         new BoolectorTermIter(btor, std::vector<BtorNode *>{}, num_children));
+  }
+}
+
+std::string BoolectorTerm::print_value_as(SortKind sk)
+{
+  if (!is_value())
+  {
+    throw IncorrectUsageException(
+        "Cannot use print_value_as on a non-value term.");
+  }
+
+  BoolectorSort s = boolector_get_sort(btor, node);
+  if (boolector_is_bitvec_sort(btor, s))
+  {
+    uint64_t width = boolector_get_width(btor, node);
+    if (width == 1 && sk == BOOL)
+    {
+      const char * charval = boolector_get_bits(btor, node);
+      std::string bits = charval;
+      boolector_free_bv_assignment(btor, charval);
+      if (bits == "1")
+      {
+        return "true";
+      }
+      else
+      {
+        return "false";
+      }
+    }
+    else
+    {
+      return to_string();
+    }
+  }
+  else
+  {
+    return to_string();
   }
 }
 

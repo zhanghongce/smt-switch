@@ -1,3 +1,19 @@
+/*********************                                                        */
+/*! \file yices2_term.cpp
+** \verbatim
+** Top contributors (to current version):
+**   Amalee Wilson
+** This file is part of the smt-switch project.
+** Copyright (c) 2020 by the authors listed in the file AUTHORS
+** in the top-level source directory) and their institutional affiliations.
+** All rights reserved.  See the file LICENSE in the top-level source
+** directory for licensing information.\endverbatim
+**
+** \brief Yices2 implementation of AbsTerm
+**
+**
+**/
+
 #include "yices2_term.h"
 #include "exceptions.h"
 #include "ops.h"
@@ -256,7 +272,7 @@ Op Yices2Term::get_op() const
        * (* -1 b) is still of type YICES_ARITH_SUM. To transfer this
        * term, you need to construct the multiply.
        */
-      sres = this->to_string();
+      sres = const_to_string();
       sres = sres.substr(sres.find("(") + 1, sres.length());
       sres = sres.substr(0, sres.find(" "));
       if (yices_term_num_children(term) == 1 && sres == "*")
@@ -266,7 +282,7 @@ Op Yices2Term::get_op() const
       return Op(Plus);
     // products
     case YICES_POWER_PRODUCT:
-      sres = this->to_string();
+      sres = const_to_string();
       sres = sres.substr(sres.find("(") + 1, sres.length());
       sres = sres.substr(0, sres.find(" "));
       if (sres == "bv-mul")
@@ -283,7 +299,7 @@ Op Yices2Term::get_op() const
     case YICES_FORALL_TERM: return Op();
     case YICES_LAMBDA_TERM: return Op();
     case YICES_BV_ARRAY:
-      sres = this->to_string();
+      sres = const_to_string();
       sres = sres.substr(sres.find("(") + 1, sres.length());
       sres = sres.substr(0, sres.find(" "));
       if (sres == "bv-concat")
@@ -300,7 +316,7 @@ Op Yices2Term::get_op() const
     case YICES_SELECT_TERM: return Op();
     case YICES_BIT_TERM:
       // TODO: Must fix this to extract coorect bit.
-      sres = this->to_string();
+      sres = const_to_string();
       sres = sres.substr(sres.find("(") + 1, sres.length());
       sres = sres.substr(0, sres.find(" "));
       if (sres == "bv-extract")
@@ -348,11 +364,34 @@ Sort Yices2Term::get_sort() const
   return Sort(new Yices2Sort(yices_type_of_term(term)));
 }
 
-bool Yices2Term::is_symbolic_const() const
+bool Yices2Term::is_symbol() const
 {
+  // functions are symbols
+  if (is_function)
+  {
+    return true;
+  }
+
   term_constructor_t tc = yices_term_constructor(term);
   return (
-      (tc == YICES_UNINTERPRETED_TERM && yices_term_num_children(term) == 0));
+          (tc == YICES_UNINTERPRETED_TERM && yices_term_num_children(term) == 0));
+}
+
+bool Yices2Term::is_param() const
+{
+  throw NotImplementedException("Yices2 backend does not support parameters yet.");
+}
+
+bool Yices2Term::is_symbolic_const() const
+{
+  // functions and parameters are not constants
+  // don't need to check parameters because not supported yet
+  if (is_function)
+  {
+    return false;
+  }
+
+  return is_symbol();
 }
 
 bool Yices2Term::is_value() const
@@ -363,24 +402,7 @@ bool Yices2Term::is_value() const
           || tc == YICES_BV_CONSTANT || tc == YICES_SCALAR_CONSTANT);
 }
 
-string Yices2Term::to_string() const
-{
-  term_constructor_t tc = yices_term_constructor(term);
-  if (tc != YICES_ARITH_CONSTANT)
-  {
-    return yices_term_to_string(term, 120, 1, 0);
-  }
-  else
-  {
-    string repr = yices_term_to_string(term, 120, 1, 0);
-    if (repr.substr(0, 1) == "-")
-    {
-      // put in smt-lib format
-      repr = "(- " + repr.substr(1, repr.length() - 1) + ")";
-    }
-    return repr;
-  }
-}
+string Yices2Term::to_string() { return const_to_string(); }
 
 uint64_t Yices2Term::to_int() const
 {
@@ -446,6 +468,44 @@ TermIter Yices2Term::end()
   // }
 
   // return TermIter(new Yices2TermIter(term, yices_term_num_children(term)));
+}
+
+std::string Yices2Term::print_value_as(SortKind sk)
+{
+  if (!is_value())
+  {
+    throw IncorrectUsageException(
+        "Cannot use print_value_as on a non-value term.");
+  }
+  return to_string();
+}
+
+string Yices2Term::const_to_string() const
+{
+  term_constructor_t tc = yices_term_constructor(term);
+  if (tc == YICES_ARITH_CONSTANT)
+  {
+    string repr = yices_term_to_string(term, 120, 1, 0);
+    if (repr.substr(0, 1) == "-")
+    {
+      // put in smt-lib format
+      repr = "(- " + repr.substr(1, repr.length() - 1) + ")";
+    }
+    return repr;
+  }
+  else if (tc == YICES_BV_CONSTANT)
+  {
+    string repr = yices_term_to_string(term, 120, 1, 0);
+    if (repr.substr(0, 2) == "0b")
+    {
+      repr = "#b" + repr.substr(2, repr.length()-2);
+    }
+    return repr;
+  }
+  else
+  {
+    return yices_term_to_string(term, 120, 1, 0);
+  }
 }
 
 // end Yices2Term implementation

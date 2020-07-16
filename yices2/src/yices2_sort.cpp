@@ -1,3 +1,19 @@
+/*********************                                                        */
+/*! \file yices2_sort.cpp
+** \verbatim
+** Top contributors (to current version):
+**   Amalee Wilson
+** This file is part of the smt-switch project.
+** Copyright (c) 2020 by the authors listed in the file AUTHORS
+** in the top-level source directory) and their institutional affiliations.
+** All rights reserved.  See the file LICENSE in the top-level source
+** directory for licensing information.\endverbatim
+**
+** \brief Yices2 implementation of AbsSort
+**
+**
+**/
+
 #include "yices2_sort.h"
 #include <sstream>
 #include "exceptions.h"
@@ -90,6 +106,18 @@ Sort Yices2Sort::get_codomain_sort() const
     throw IncorrectUsageException("Can only get element sort from array sort");
   }
 }
+
+string Yices2Sort::get_uninterpreted_name() const
+{
+  throw NotImplementedException(
+      "get_uninterpreted_name not implemented for Yices2Sort");
+}
+
+
+Datatype Yices2Sort::get_datatype() const {
+  throw NotImplementedException("get_datatype");
+};
+
 
 bool Yices2Sort::compare(const Sort s) const
 {

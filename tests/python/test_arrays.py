@@ -1,3 +1,19 @@
+###############################################################
+# \file test_arrays.py
+# \verbatim
+# Top contributors (to current version):
+#   Makai Mann
+# This file is part of the smt-switch project.
+# Copyright (c) 2020 by the authors listed in the file AUTHORS
+# in the top-level source directory) and their institutional affiliations.
+# All rights reserved.  See the file LICENSE in the top-level source
+# directory for licensing information.\endverbatim
+#
+# \brief
+#
+#
+#
+
 import pytest
 import smt_switch as ss
 from smt_switch.primops import Distinct, Equal, Select, Store
@@ -5,7 +21,7 @@ from smt_switch.primops import Distinct, Equal, Select, Store
 
 @pytest.mark.parametrize("create_solver", ss.solvers.values())
 def test_array_read_over_write(create_solver):
-    solver = create_solver()
+    solver = create_solver(False)
     solver.set_logic('QF_ABV')
 
     bvsort8  = solver.make_sort(ss.sortkinds.BV, 8)
@@ -29,7 +45,7 @@ def test_array_read_over_write(create_solver):
 
 @pytest.mark.parametrize("create_solver", [f for n, f in ss.solvers.items() if n != 'btor'])
 def test_array_lia_extensionality(create_solver):
-    solver = create_solver()
+    solver = create_solver(False)
     solver.set_logic('QF_ALIA')
 
     intsort = solver.make_sort(ss.sortkinds.INT)

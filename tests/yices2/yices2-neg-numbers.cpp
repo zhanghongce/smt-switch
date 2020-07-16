@@ -1,3 +1,19 @@
+/*********************                                                        */
+/*! \file yices2-neg-numbers.cpp
+** \verbatim
+** Top contributors (to current version):
+**   Amalee Wilson
+** This file is part of the smt-switch project.
+** Copyright (c) 2020 by the authors listed in the file AUTHORS
+** in the top-level source directory) and their institutional affiliations.
+** All rights reserved.  See the file LICENSE in the top-level source
+** directory for licensing information.\endverbatim
+**
+** \brief
+**
+**
+**/
+
 #include <iostream>
 #include <memory>
 #include <vector>
@@ -14,7 +30,7 @@ using namespace std;
 
 int main()
 {
-  SmtSolver s = Yices2SolverFactory::create();
+  SmtSolver s = Yices2SolverFactory::create(true);
 
   // BitVector cases
   Sort bvsort8 = s->make_sort(BV, 8);

@@ -1,3 +1,19 @@
+/*********************                                                        */
+/*! \file msat_term.cpp
+** \verbatim
+** Top contributors (to current version):
+**   Makai Mann
+** This file is part of the smt-switch project.
+** Copyright (c) 2020 by the authors listed in the file AUTHORS
+** in the top-level source directory) and their institutional affiliations.
+** All rights reserved.  See the file LICENSE in the top-level source
+** directory for licensing information.\endverbatim
+**
+** \brief MathSAT implementation of AbsTerm
+**
+**
+**/
+
 #include "msat_term.h"
 #include "msat_sort.h"
 
@@ -65,9 +81,12 @@ const std::unordered_map<msat_symbol_tag, PrimOp> tag2op({
     { MSAT_TAG_BV_SEXT, Sign_Extend },
     { MSAT_TAG_ARRAY_READ, Select },
     { MSAT_TAG_ARRAY_WRITE, Store },
-    { MSAT_TAG_ARRAY_CONST, NUM_OPS_AND_NULL }, // Const Array is a value (no op)
+    { MSAT_TAG_ARRAY_CONST,
+      NUM_OPS_AND_NULL },  // Const Array is a value (no op)
     { MSAT_TAG_INT_TO_BV, Int_To_BV },
     { MSAT_TAG_INT_FROM_UBV, BV_To_Nat },
+    { MSAT_TAG_FORALL, Forall },
+    { MSAT_TAG_EXISTS, Exists },
     // MSAT_TAG_FP_EQ,
     // MSAT_TAG_FP_LT,
     // MSAT_TAG_FP_LE,
@@ -119,7 +138,7 @@ const Term MsatTermIter::operator*()
 {
   if (!pos && msat_term_is_uf(env, term))
   {
-    return Term(new MsatTerm(env, msat_term_get_decl(term)));
+    return std::make_shared<MsatTerm> (env, msat_term_get_decl(term));
   }
   else
   {
@@ -128,7 +147,8 @@ const Term MsatTermIter::operator*()
     {
       actual_idx--;
     }
-    return Term(new MsatTerm(env, msat_term_get_arg(term, actual_idx)));
+
+    return std::make_shared<MsatTerm>(env, msat_term_get_arg(term, actual_idx));
   }
 }
 
@@ -371,7 +391,15 @@ Op MsatTerm::get_op() const
   {
     return Op(BVComp);
   }
-  else if (is_symbolic_const() || is_value())
+  else if (msat_term_is_forall(env, term))
+  {
+    return Op(Forall);
+  }
+  else if (msat_term_is_exists(env, term))
+  {
+    return Op(Exists);
+  }
+  else if (is_symbol() || is_value())
   {
     return Op();
   }
@@ -415,7 +443,7 @@ Sort MsatTerm::get_sort() const
 {
   if (!is_uf)
   {
-    return Sort(new MsatSort(env, msat_term_get_type(term)));
+    return std::make_shared<MsatSort> (env, msat_term_get_type(term));
   }
   else
   {
@@ -438,11 +466,11 @@ Sort MsatTerm::get_sort() const
                                                param_types.size(),
                                                msat_decl_get_return_type(decl));
 
-    return Sort(new MsatSort(env, funtype, decl));
+    return std::make_shared<MsatSort> (env, funtype, decl);
   }
 }
 
-bool MsatTerm::is_symbolic_const() const
+bool MsatTerm::is_symbol() const
 {
   // functions are currently considered symbols
   if (is_uf)
@@ -456,6 +484,19 @@ bool MsatTerm::is_symbolic_const() const
       (msat_term_arity(term) == 0)
       && (msat_decl_get_tag(env, msat_term_get_decl(term)) == MSAT_TAG_UNKNOWN)
       && !msat_term_is_number(env, term));
+}
+
+bool MsatTerm::is_param() const { return msat_term_is_variable(env, term); }
+
+bool MsatTerm::is_symbolic_const() const
+{
+  // functions and parameters are not constants
+  if (is_uf || is_param())
+  {
+    return false;
+  }
+
+  return is_symbol();
 }
 
 bool MsatTerm::is_value() const
@@ -472,7 +513,7 @@ bool MsatTerm::is_value() const
           msat_term_is_array_const(env, term));
 }
 
-string MsatTerm::to_string() const
+string MsatTerm::to_string()
 {
   if (is_uf)
   {
@@ -552,6 +593,16 @@ TermIter MsatTerm::end()
     arity++;
   }
   return TermIter(new MsatTermIter(env, term, arity));
+}
+
+std::string MsatTerm::print_value_as(SortKind sk)
+{
+  if (!is_value())
+  {
+    throw IncorrectUsageException(
+        "Cannot use print_value_as on a non-value term.");
+  }
+  return to_string();
 }
 
 // end MsatTerm implementation

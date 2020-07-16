@@ -1,5 +1,20 @@
-#ifndef SMT_MSAT_EXTENSIONS_H
-#define SMT_MSAT_EXTENSIONS_H
+/*********************                                                        */
+/*! \file msat_extensions.h
+** \verbatim
+** Top contributors (to current version):
+**   Makai Mann
+** This file is part of the smt-switch project.
+** Copyright (c) 2020 by the authors listed in the file AUTHORS
+** in the top-level source directory) and their institutional affiliations.
+** All rights reserved.  See the file LICENSE in the top-level source
+** directory for licensing information.\endverbatim
+**
+** \brief Helper functions for certain operations in MathSAT C API
+**
+**
+**/
+
+#pragma once
 
 #include "mathsat.h"
 
@@ -38,4 +53,3 @@ msat_term ext_msat_make_uf(msat_env e,
 
 }  // namespace smt
 
-#endif

@@ -1,3 +1,19 @@
+/*********************                                                        */
+/*! \file btor-const-arrays.cpp
+** \verbatim
+** Top contributors (to current version):
+**   Makai Mann
+** This file is part of the smt-switch project.
+** Copyright (c) 2020 by the authors listed in the file AUTHORS
+** in the top-level source directory) and their institutional affiliations.
+** All rights reserved.  See the file LICENSE in the top-level source
+** directory for licensing information.\endverbatim
+**
+** \brief
+**
+**
+**/
+
 #include <iostream>
 #include <memory>
 #include <vector>
@@ -14,7 +30,7 @@ using namespace std;
 
 int main()
 {
-  SmtSolver s = BoolectorSolverFactory::create();
+  SmtSolver s = BoolectorSolverFactory::create(false);
   s->set_logic("QF_ABV");
   s->set_opt("produce-models", "true");
 
@@ -48,7 +64,7 @@ int main()
   assert(r.is_unsat());
 
   // test transferring term to a different solver
-  SmtSolver s2 = BoolectorSolverFactory::create();
+  SmtSolver s2 = BoolectorSolverFactory::create(false);
   s2->set_logic("QF_ABV");
   s2->set_opt("produce-models", "true");
   s2->set_opt("incremental", "true");

@@ -1,3 +1,19 @@
+/*********************                                                        */
+/*! \file unit-op.cpp
+** \verbatim
+** Top contributors (to current version):
+**   Makai Mann
+** This file is part of the smt-switch project.
+** Copyright (c) 2020 by the authors listed in the file AUTHORS
+** in the top-level source directory) and their institutional affiliations.
+** All rights reserved.  See the file LICENSE in the top-level source
+** directory for licensing information.\endverbatim
+**
+** \brief Unit tests for ops.
+**
+**
+**/
+
 #include <utility>
 #include <vector>
 
@@ -10,13 +26,19 @@ using namespace std;
 
 namespace smt_tests {
 
+class UnitPrimOpTests : public ::testing::Test,
+                        // passing the PrimOp enum as a size_t
+                        public ::testing::WithParamInterface<size_t>
+{
+};
+
 class UnitTests : public ::testing::Test,
-                  public testing::WithParamInterface<SolverEnum>
+                  public ::testing::WithParamInterface<SolverEnum>
 {
  protected:
   void SetUp() override
   {
-    s = available_solvers().at(GetParam())();
+    s = create_solver(GetParam());
 
     boolsort = s->make_sort(BOOL);
     bvsort = s->make_sort(BV, 4);
@@ -25,6 +47,18 @@ class UnitTests : public ::testing::Test,
   SmtSolver s;
   Sort boolsort, bvsort, funsort;
 };
+
+TEST_P(UnitPrimOpTests, GetArity)
+{
+  PrimOp po = static_cast<PrimOp>(GetParam());
+  ASSERT_NO_THROW(get_arity(po));
+}
+
+TEST_P(UnitPrimOpTests, ToString)
+{
+  PrimOp po = static_cast<PrimOp>(GetParam());
+  ASSERT_NO_THROW(::smt::to_string(po));
+}
 
 TEST_P(UnitTests, FunOp)
 {
@@ -103,8 +137,13 @@ TEST_P(UnitTests, MultiArgFun)
   ASSERT_EQ(res2, s->make_term(Apply, args2));
 }
 
+INSTANTIATE_TEST_SUITE_P(ParameterizedPrimOp,
+                         UnitPrimOpTests,
+                         testing::Range((size_t)0,
+                                        static_cast<size_t>(NUM_OPS_AND_NULL)));
+
 INSTANTIATE_TEST_SUITE_P(ParameterizedSolverUnit,
                          UnitTests,
-                         testing::ValuesIn(available_termiter_solver_enums()));
+                         testing::ValuesIn(filter_solver_enums({ TERMITER })));
 
 }  // namespace smt_tests
