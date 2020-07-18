@@ -92,7 +92,7 @@ Sort TermTranslator::transfer_sort(const Sort & sort) const
   }
 }
 
-Term TermTranslator::transfer_term(const Term & term)
+Term TermTranslator::transfer_term(const Term & term, bool allow_create_new_symbols)
 {
   if (cache.find(term) != cache.end())
   {
@@ -135,8 +135,13 @@ Term TermTranslator::transfer_term(const Term & term)
     {
       if (t->is_symbol())
       {
-        s = transfer_sort(t->get_sort());
-        cache[t] = solver->make_symbol(t->to_string(), s);
+        if (allow_create_new_symbols) {
+          s = transfer_sort(t->get_sort());
+          cache[t] = solver->make_symbol(t->to_string(), s);
+        } else {
+          throw SmtException("Try to create symbol : " + t->to_string() + " of type "
+                               + t->get_sort()->to_string() + ", which is not allowed.");
+        }
       }
       else if (t->is_param())
       {
@@ -212,9 +217,9 @@ Term TermTranslator::transfer_term(const Term & term)
         {
           cache[t] = solver->make_term(t->get_op(), cached_children);
         }
-      }
-    }
-  }
+      } // some op ...
+    } // if (visited.find(t) == visited.end()) else ...
+  } // end of while
 
   assert(cache.find(term) != cache.end());
   // make sure the sort is as-expected and cast if not
@@ -223,150 +228,6 @@ Term TermTranslator::transfer_term(const Term & term)
   return cache.at(term);
 } // end of Term TermTranslator::transfer_term(const Term & term)
 
-
-Term TermTranslator::transfer_term(const Term & term, const std::unordered_map<std::string, smt::Term> & symbols)
-{
-  if (cache.find(term) != cache.end())
-  {
-    return cache.at(term);
-  }
-
-  TermVec to_visit{ term };
-  // better to keep a separate set for visited
-  // then if something is in the cache, we can
-  // assume it's already been processed
-  // not just visited
-  UnorderedTermSet visited;
-  TermVec cached_children;
-  Term t;
-  Sort s;
-  while (to_visit.size())
-  {
-    t = to_visit.back();
-    to_visit.pop_back();
-
-    if (cache.find(t) != cache.end())
-    {
-      // cache hit
-      // it's already been processed
-      continue;
-    }
-
-    if (visited.find(t) == visited.end())
-    {
-      // doesn't get updated yet, just marking as visited
-      visited.insert(t);
-      // need to visit it again
-      to_visit.push_back(t);
-      for (auto c : t)
-      {
-        to_visit.push_back(c);
-      }
-    }
-    else
-    {
-      if (t->is_symbol())
-      {
-        s = transfer_sort(t->get_sort());
-        std::string name = t->to_string();
-        auto pos = symbols.find(name);
-        if (pos == symbols.end()) {
-          if (name.at(0) == '|' && name.back() == '|')
-            pos = symbols.find(name.substr(1,name.length()-2));
-        }
-        if (pos != symbols.end())
-          cache[t] = pos->second;
-        else {
-          // will not make new symbols
-          // cache[t] = solver->make_symbol(t->to_string(), s);
-          throw IncorrectUsageException ("symbol " + name + " is not " 
-            "defined in the given symbol table.");
-        }
-      }
-      else if (t->is_param())
-      {
-        s = transfer_sort(t->get_sort());
-        cache[t] = solver->make_param(t->to_string(), s);
-      }
-      else if (t->is_value())
-      {
-        s = transfer_sort(t->get_sort());
-        if (s->get_sort_kind() == ARRAY)
-        {
-          // special case for const-array
-          assert(t->begin() != t->end());
-          Term val = cache.at(*(t->begin()));
-          Sort valsort = val->get_sort();
-          if (s->get_sort_kind() != ARRAY)
-          {
-            throw SmtException("Expecting array sort but got: "
-                               + s->to_string());
-          }
-          else if (s->get_elemsort() != valsort)
-          {
-            throw SmtException("Expecting element sort but got "
-                               + val->get_sort()->to_string() + " and "
-                               + s->to_string());
-          }
-          else if (valsort->get_sort_kind() == ARRAY)
-          {
-            throw NotImplementedException(
-                "Transferring terms with multi-dimensional constant arrays is "
-                "not yet supported. Please contact the developers.");
-          }
-          cache[t] = solver->make_term(val, s);
-        }
-        else
-        {
-          // pass the original sort here
-          // allows us to transfer from a solver that doesn't alias sorts
-          // to one that does alias sorts
-          // the sort will be transferred again in value_from_smt2
-          cache[t] = value_from_smt2(t->to_string(), t->get_sort());
-        }
-      }
-      else
-      {
-        assert(!t->is_symbol());
-        assert(!t->is_param());
-        assert(!t->is_value());
-        assert(!t->get_op().is_null());
-
-        cached_children.clear();
-        for (auto c : t)
-        {
-          cached_children.push_back(cache.at(c));
-        }
-        assert(cached_children.size());
-
-        Op op = t->get_op();
-        if (!check_sortedness(op, cached_children))
-        {
-          /* NOTE: interesting behavior here
-             if transferring between two solvers that alias sorts
-             e.g. two different instances of BTOR
-             the sorted-ness check will still fail for something like
-             Ite(BV{1}, BV{8}, BV{8})
-             so we'll reach this point and cast
-             but the cast won't actually do anything for BTOR
-             in other words, check_sortedness is not guaranteed
-             to hold after casting */
-          cache[t] = cast_op(op, cached_children);
-        }
-        else
-        {
-          cache[t] = solver->make_term(t->get_op(), cached_children);
-        }
-      }
-    }
-  }
-
-  assert(cache.find(term) != cache.end());
-  // make sure the sort is as-expected and cast if not
-  // for dealing with solvers that alias sorts
-
-  return cache.at(term);
-} // end of Term TermTranslator::transfer_term(const Term & term , const std::unordered_map<std::string, smt::Term> & symbols)
 
 Term TermTranslator::transfer_term(const Term & term, const SortKind sk)
 {

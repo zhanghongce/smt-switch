@@ -69,14 +69,7 @@ class TermTranslator
    *  @param term the term to transfer to the member variable solver
    *  @return a term belonging to this solver
    */
-  Term transfer_term(const Term & term);
-
-  /** Transfers a term from the other solver to this solver (will be deprecated)
-   *  @param term the term to transfer to the member variable solver
-   *  @param symbols the symbol mapping
-   *  @return a term belonging to this solver
-   */
-  Term transfer_term(const Term & term, const std::unordered_map<std::string, smt::Term> & symbols );
+  Term transfer_term(const Term & term, bool allow_create_new_symbols = true);
 
   /** Transfers a term and casts it to a particular SortKind
    *  for now, only supports Bool <-> BV1 and Int <-> Real
