@@ -43,7 +43,7 @@ class LoggingTerm : public AbsTerm
   Op get_op() const override;
   Sort get_sort() const override;
   std::string to_string() override;
-  std::string to_string_raw();
+  std::string to_raw_string() override;
   bool is_symbol() const override;
   bool is_param() const override;
   bool is_symbolic_const() const override;
