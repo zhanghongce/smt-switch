@@ -43,6 +43,7 @@ class LoggingTerm : public AbsTerm
   Op get_op() const override;
   Sort get_sort() const override;
   std::string to_string() override;
+  std::string to_string_raw();
   bool is_symbol() const override;
   bool is_param() const override;
   bool is_symbolic_const() const override;
@@ -61,6 +62,7 @@ class LoggingTerm : public AbsTerm
   Op op;
   TermVec children;
   std::string repr;
+  std::string raw_repr;
   bool is_sym;
   bool is_par;
 
