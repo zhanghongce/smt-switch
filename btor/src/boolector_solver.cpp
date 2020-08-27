@@ -321,25 +321,25 @@ Result BoolectorSolver::check_sat_assuming(const TermVec & assumptions)
   {
     bt = std::static_pointer_cast<BoolectorTerm>(a);
 
-    bool is_literal = true;
+    bool is_one_bit = true;
 
     BoolectorSort s = boolector_get_sort(bt->btor, bt->node);
     // booleans are bit-vectors in boolector
-    is_literal &= boolector_is_bitvec_sort(bt->btor, s);
-    is_literal &= boolector_get_width(bt->btor, bt->node) == 1;
+    is_one_bit &= boolector_is_bitvec_sort(bt->btor, s);
+    is_one_bit &= boolector_get_width(bt->btor, bt->node) == 1;
 
-    bool const_or_negated = a->is_symbolic_const();
-    if (!const_or_negated && bt->negated)
-    {
-      Term c = *(a->begin());
-      const_or_negated = c->is_symbolic_const();
-    }
-    is_literal &= const_or_negated;
+    // bool const_or_negated = a->is_symbolic_const();
+    // if (!const_or_negated && bt->negated)
+    // {
+    //   Term c = *(a->begin());
+    //   const_or_negated = c->is_symbolic_const();
+    // }
+    // is_literal &= const_or_negated;
 
-    if (!is_literal)
+    if (!is_one_bit)
     {
       throw IncorrectUsageException(
-          "Assumptions to check_sat_assuming must be boolean literals");
+          "Assumptions to check_sat_assuming must be boolean expressions");
     }
 
     boolector_assume(btor, bt->node);
