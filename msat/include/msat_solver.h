@@ -74,7 +74,7 @@ class MsatSolver : public AbsSmtSolver
   Term get_value(const Term & t) const override;
   UnorderedTermMap get_array_values(const Term & arr,
                                     Term & out_const_base) const override;
-  TermVec get_unsat_core() override;
+  void get_unsat_core(UnorderedTermSet & out) override;
   Sort make_sort(const std::string name, uint64_t arity) const override;
   Sort make_sort(SortKind sk) const override;
   Sort make_sort(SortKind sk, uint64_t size) const override;
@@ -173,9 +173,9 @@ class MsatInterpolatingSolver : public MsatSolver
   Result check_sat() override;
   Result check_sat_assuming(const TermVec & assumptions) override;
   Term get_value(const Term & t) const override;
-  bool get_interpolant(const Term & A,
-                       const Term & B,
-                       Term & out_I) const override;
+  Result get_interpolant(const Term & A,
+                         const Term & B,
+                         Term & out_I) const override;
 };
 
 }  // namespace smt

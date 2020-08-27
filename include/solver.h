@@ -67,7 +67,7 @@ class AbsSmtSolver
 
   /* Check satisfiability of the current assertions under the given assumptions
    * Note: the assumptions must be boolean literals, not arbitrary formulas
-   * SMTLIB: (check-sat-assuming (t1 t2 ... tn)) with asssumptions = [t1,...,tn]
+   * SMTLIB: (check-sat-assuming (t1 t2 ... tn)) with asssumption literals = [t1,...,tn]
    * @param assumptions a vector of boolean literals
    * @return a result object - see result.h
    */
@@ -104,12 +104,12 @@ class AbsSmtSolver
                                             Term & out_const_base) const = 0;
 
   /** After a call to check_sat_assuming that returns an unsatisfiable result
-   *  this function will return a subset of the assumption literals
-   *  that are sufficient to make the assertions unsat.
-   *  SMTLIB: (get-unsat-assumptions)
-   *  @return a vector of assumption literals in the unsat core
+   *  this function will populate the 'out' UnorderedTermSet with a subset
+   *  of the assumption literals that are sufficient to make the assertions
+   *  unsat.
+   *  SMTLIB: (get-unsat-assumptions) 
    */
-  virtual TermVec get_unsat_core() = 0;
+  virtual void get_unsat_core(UnorderedTermSet & out) = 0;
 
   // virtual bool check_sat_assuming() const = 0;
 
@@ -355,14 +355,14 @@ class AbsSmtSolver
    * @param A the A term for a craig interpolant
    * @param B the B term for a craig interpolant
    * @param out_I the term to store the computed interpolant in
-   * @return true iff an interpolant was computed
+   * @return unsat    iff an interpolant was computed,
+   *         sat      iff the query was satisfiable,
+   *         unknown  iff interpolation failed
    *
-   * Throws an SmtException if the formula was actually sat or
-   *   if computing the interpolant failed.
    */
-  virtual bool get_interpolant(const Term & A,
-                               const Term & B,
-                               Term & out_I) const
+  virtual Result get_interpolant(const Term & A,
+                                 const Term & B,
+                                 Term & out_I) const
   {
     throw NotImplementedException("Interpolants are not supported by this solver.");
   }

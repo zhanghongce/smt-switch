@@ -57,6 +57,12 @@ target_link_libraries(unit-term gtest_main)
 target_link_libraries(unit-term test-deps)
 add_test(NAME unit-term_test COMMAND unit-term)
 
+add_executable(unit-sort "${PROJECT_SOURCE_DIR}/tests/unit/unit-sort.cpp")
+target_link_libraries(unit-sort gtest_main)
+target_link_libraries(unit-sort test-deps)
+add_test(NAME unit-sort_test COMMAND unit-sort)
+
+
 add_executable(unit-sort-inference "${PROJECT_SOURCE_DIR}/tests/unit/unit-sort-inference.cpp")
 target_link_libraries(unit-sort-inference gtest_main)
 target_link_libraries(unit-sort-inference test-deps)
@@ -71,6 +77,11 @@ add_executable(unit-termiter "${PROJECT_SOURCE_DIR}/tests/unit/unit-termiter.cpp
 target_link_libraries(unit-termiter gtest_main)
 target_link_libraries(unit-termiter test-deps)
 add_test(NAME unit-termiter_test COMMAND unit-termiter)
+
+add_executable(unit-walker "${PROJECT_SOURCE_DIR}/tests/unit/unit-walker.cpp")
+target_link_libraries(unit-walker gtest_main)
+target_link_libraries(unit-walker test-deps)
+add_test(NAME unit-walker_test COMMAND unit-walker)
 
 add_executable(unit-printing "${PROJECT_SOURCE_DIR}/tests/unit/unit-printing.cpp")
 target_link_libraries(unit-printing gtest_main)
