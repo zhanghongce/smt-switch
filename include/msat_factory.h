@@ -21,7 +21,6 @@
 namespace smt {
   class MsatSolverFactory
   {
-    using MsatInterpolatorConfiguration = Configurations::MsatInterpolatorConfiguration;
   public:
       /** Create a MathSAT SmtSolver
        *  @param logging if true creates a LoggingSolver wrapper
@@ -40,7 +39,6 @@ namespace smt {
     /** Create an interpolating MathSAT SmtSolver
      *  @return an interpolating MathSAT SmtSolver
      */
-    static SmtSolver create_interpolating_solver(
-      const MsatInterpolatorConfiguration & cfg = MsatInterpolatorConfiguration());
+    static SmtSolver create_interpolating_solver();
   };
 }  // namespace smt
