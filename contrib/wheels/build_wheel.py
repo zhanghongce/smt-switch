@@ -9,6 +9,7 @@ import glob
 
 from setuptools import setup, Extension
 from setuptools.command.build_ext import build_ext
+from skbuild.cmaker import CMaker
 from distutils.version import LooseVersion
 
 
@@ -60,8 +61,8 @@ class CMakeBuild(build_ext):
 
         # call configure
         # default install everything?
-        solvers = ["btor"] #, "cvc4", "msat"]
-        solver_path = {"btor": "boolector", "cvc4": "CVC4", "msat": "mathsat"}
+        solvers = ["bitwuzla", "cvc5", "z3"] # , "msat"]
+        solver_path = {"btor": "boolector", "bitwuzla": "bitwuzla", "cvc5": "cvc5", "msat": "mathsat", "z3": "z3"}
         root_path = os.path.dirname(os.path.dirname(os.path.abspath(os.path.dirname(__file__))))
         build_dir = os.path.join(root_path, "build")
 
@@ -78,6 +79,13 @@ class CMakeBuild(build_ext):
         python_make_dir = os.path.join(build_dir, "python")
         if not os.path.isfile(os.path.join(python_make_dir, "Makefile")):
             args = ["--" + solver for solver in solvers] + ["--python"]
+            args.append('-DPYTHON_VERSION_STRING:STRING=' + \
+                        sys.version.split(' ')[0])
+            python_version = CMaker.get_python_version()
+            args.append('-DPYTHON_INCLUDE_DIR:PATH=' + \
+                        CMaker.get_python_include_dir(python_version))
+            args.append('-DPYTHON_LIBRARY:FILEPATH=' + \
+                        CMaker.get_python_library(python_version))
             config_filename = os.path.join(root_path, "configure.sh")
             subprocess.check_call([config_filename] + args)
 
@@ -85,14 +93,18 @@ class CMakeBuild(build_ext):
         subprocess.check_call(
             ['cmake', '--build', '.', "--target", "smt-switch"] + build_args, cwd=build_dir)
         # build the python binding
-        python_build_dir = os.path.join(build_dir, "python")
+        python_build_dir = os.path.join(os.path.join(build_dir, "python"), "smt_switch")
         subprocess.check_call(["make"], cwd=python_build_dir)
         # the build folder gets cleaned during the config, need to create it again
         # this is necessary since "build" is a python dist folder
         if not os.path.isdir(extdir):
             os.mkdir(extdir)
         # copy the library over. we need to consider other users that's not on linux
-        for lib_filename in glob.glob(os.path.join(python_build_dir, "smt_switch.*")):
+        lib_files = filter(lambda s: os.path.splitext(s)[1] != '.cxx',
+                           glob.glob(os.path.join(python_build_dir, "smt_switch.*")))
+        assert lib_files, 'Expecting library files but found none'
+        for lib_filename in lib_files:
+            print(f'Copying library: {lib_filename}')
             if os.path.splitext(lib_filename)[1] == ".cxx":
                 continue
             dst_filename = os.path.join(extdir, os.path.basename(lib_filename))
@@ -101,7 +113,7 @@ class CMakeBuild(build_ext):
 
 setup(
     name='smt-switch',
-    version='0.2.0',
+    version='0.3.0',
     author='Makai Mann',
     ext_modules=[CMakeExtension('smt-switch')],
     cmdclass=dict(build_ext=CMakeBuild),

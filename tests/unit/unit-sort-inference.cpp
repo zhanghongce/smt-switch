@@ -25,7 +25,7 @@ using namespace std;
 namespace smt_tests {
 
 class UnitSortInferenceTests : public ::testing::Test,
-                               public ::testing::WithParamInterface<SolverEnum>
+                               public ::testing::WithParamInterface<SolverConfiguration>
 {
  protected:
   void SetUp() override
@@ -159,6 +159,7 @@ TEST_P(UnitSortInferenceTests, SortednessTests)
   if (solver_has_attribute(s->get_solver_enum(), QUANTIFIERS))
   {
     Term param = s->make_param("param", bvsort4);
+    EXPECT_TRUE(param->is_param());
     Term body = s->make_term(Equal, param, s->make_term(0, bvsort4));
     // if bool and bv1 aliased, then body won't necessarily have type bool
     // e.g. BTOR also returns the type as BV1
@@ -170,6 +171,11 @@ TEST_P(UnitSortInferenceTests, SortednessTests)
     EXPECT_FALSE(check_sortedness(Exists, {q, body}));
     // not a formula for the body
     EXPECT_FALSE(check_sortedness(Exists, {param, s->make_term(BVAdd, param, q)}));
+
+    // bind param
+    Term forallparam = s->make_term(Forall, param, body);
+    EXPECT_TRUE(param->is_param());  // should still be considered a parameter
+                                     // after binding
   }
 }
 
@@ -271,10 +277,10 @@ TEST_P(UnitArithmeticSortInferenceTests, ArithmeticSortComputation)
 
 INSTANTIATE_TEST_SUITE_P(ParameterizedUnitSortInference,
                          UnitSortInferenceTests,
-                         testing::ValuesIn(available_solver_enums()));
+                         testing::ValuesIn(available_solver_configurations()));
 
 INSTANTIATE_TEST_SUITE_P(ParameterizedUnitArithmeticSortInference,
                          UnitArithmeticSortInferenceTests,
-                         testing::ValuesIn(filter_solver_enums({ THEORY_INT, THEORY_REAL })));
+                         testing::ValuesIn(filter_solver_configurations({ THEORY_INT, THEORY_REAL })));
 
 }  // namespace smt_tests

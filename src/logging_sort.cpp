@@ -27,6 +27,14 @@ Sort make_uninterpreted_logging_sort(Sort s, string name, uint64_t arity)
   return std::make_shared<UninterpretedLoggingSort>(s, name, arity);
 }
 
+Sort make_uninterpreted_logging_sort(Sort s,
+                                     string name,
+                                     const SortVec & sorts)
+{
+  // sort has zero arity after being constructed
+  return std::make_shared<UninterpretedLoggingSort>(s, name, 0, sorts);
+}
+
 Sort make_logging_sort(SortKind sk, Sort s)
 {
   if (sk != BOOL && sk != INT && sk != REAL)
@@ -115,7 +123,7 @@ Sort make_logging_sort(SortKind sk, Sort s, SortVec sorts)
 // implementations
 SortKind LoggingSort::get_sort_kind() const { return sk; }
 
-bool LoggingSort::compare(const Sort s) const
+bool LoggingSort::compare(const Sort & s) const
 {
   SortKind other_sk = s->get_sort_kind();
   if (sk != other_sk)
@@ -167,8 +175,7 @@ bool LoggingSort::compare(const Sort s) const
     {
       throw NotImplementedException("LoggingSort::compare");
     }
-    case NUM_SORT_CONS:
-    {
+    case NUM_SORT_KINDS: {
       // null sorts should not be equal
       return false;
     }
@@ -176,7 +183,9 @@ bool LoggingSort::compare(const Sort s) const
     {
       // this code should be unreachable
       throw SmtException(
-          "Hit default case in LoggingSort comparison -- missing a SortCon");
+          "Hit default case in LoggingSort comparison -- missing case for "
+          "SortKind: "
+          + smt::to_string(sk));
     }
   }
 }
@@ -228,7 +237,17 @@ Sort FunctionLoggingSort::get_codomain_sort() const { return codomain_sort; }
 // UninterpretedLoggingSort
 
 UninterpretedLoggingSort::UninterpretedLoggingSort(Sort s, string n, uint64_t a)
-    : super(UNINTERPRETED, s), name(n), arity(a)
+    // non-zero arity means it's a sort constructor
+    // otherwise it's just an uninterpreted sort
+    : super(a ? UNINTERPRETED_CONS : UNINTERPRETED, s), name(n), arity(a)
+{
+}
+
+UninterpretedLoggingSort::UninterpretedLoggingSort(Sort s,
+                                                   string n,
+                                                   uint64_t a,
+                                                   const SortVec & sorts)
+    : super(UNINTERPRETED, s), name(n), arity(a), param_sorts(sorts)
 {
 }
 
@@ -237,6 +256,13 @@ UninterpretedLoggingSort::~UninterpretedLoggingSort() {}
 std::string UninterpretedLoggingSort::get_uninterpreted_name() const
 {
   return name;
+}
+
+size_t UninterpretedLoggingSort::get_arity() const { return arity; }
+
+SortVec UninterpretedLoggingSort::get_uninterpreted_param_sorts() const
+{
+  return param_sorts;
 }
 
 }  // namespace smt

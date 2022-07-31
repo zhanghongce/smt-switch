@@ -50,6 +50,8 @@ class BoolectorSolver : public AbsSmtSolver
   BoolectorSolver & operator=(const BoolectorSolver &) = delete;
   ~BoolectorSolver()
   {
+    // need to destruct all stored terms in the symbol_table
+    symbol_table.clear();
     boolector_delete(btor);
   };
   void set_opt(const std::string option, const std::string value) override;
@@ -57,12 +59,15 @@ class BoolectorSolver : public AbsSmtSolver
   void assert_formula(const Term & t) override;
   Result check_sat() override;
   Result check_sat_assuming(const TermVec & assumptions) override;
+  Result check_sat_assuming_list(const TermList & assumptions) override;
+  Result check_sat_assuming_set(const UnorderedTermSet & assumptions) override;
   void push(uint64_t num = 1) override;
   void pop(uint64_t num = 1) override;
+  uint64_t get_context_level() const override;
   Term get_value(const Term & t) const override;
   UnorderedTermMap get_array_values(const Term & arr,
                                     Term & out_const_base) const override;
-  void get_unsat_core(UnorderedTermSet & out) override;
+  void get_unsat_assumptions(UnorderedTermSet & out) override;
   Sort make_sort(const std::string name, uint64_t arity) const override;
   Sort make_sort(SortKind sk) const override;
   Sort make_sort(SortKind sk, uint64_t size) const override;
@@ -75,7 +80,7 @@ class BoolectorSolver : public AbsSmtSolver
                  const Sort & sort2,
                  const Sort & sort3) const override;
   Sort make_sort(SortKind sk, const SortVec & sorts) const override;
-
+  Sort make_sort(const Sort & sort_con, const SortVec & sorts) const override;
   Sort make_sort(const DatatypeDecl & d) const override;
 
   DatatypeDecl make_datatype_decl(const std::string & s) override;
@@ -95,6 +100,7 @@ class BoolectorSolver : public AbsSmtSolver
                  uint64_t base = 10) const override;
   Term make_term(const Term & val, const Sort & sort) const override;
   Term make_symbol(const std::string name, const Sort & sort) override;
+  Term get_symbol(const std::string & name) override;
   Term make_param(const std::string name, const Sort & sort) override;
   /* build a new term */
   Term make_term(Op op, const Term & t) const override;
@@ -115,10 +121,15 @@ class BoolectorSolver : public AbsSmtSolver
   Term apply_prim_op(PrimOp op, TermVec terms) const;
   void dump_smt2(std::string filename) const override;
 
+  // getters for solver-specific objects
+  // for interacting with third-party Boolector-specific software
+
+  Btor * get_btor() const { return btor; };
+
  protected:
   Btor * btor;
-  // store the names of created symbols
-  std::unordered_set<std::string> symbol_names;
+
+  std::unordered_map<std::string, Term> symbol_table;
 
   bool base_context_1 = false;
   ///< if set to true, do all solving at context 1 in the solver
@@ -127,6 +138,34 @@ class BoolectorSolver : public AbsSmtSolver
   ///< reset_assertions yet
   ///< set this flag with set_opt("base-context-1", "true")
   size_t context_level = 0;  ///< tracks the current solving context level
+
+  // helper functions
+  template <class I>
+  inline Result check_sat_assuming(I it, const I & end)
+  {
+    std::shared_ptr<BoolectorTerm> bt;
+    while (it != end)
+    {
+      bt = std::static_pointer_cast<BoolectorTerm>(*it);
+      assert(boolector_get_width(bt->btor, bt->node) == 1);
+      boolector_assume(btor, bt->node);
+      ++it;
+    }
+
+    int32_t res = boolector_sat(btor);
+    if (res == BOOLECTOR_SAT)
+    {
+      return Result(SAT);
+    }
+    else if (res == BOOLECTOR_UNSAT)
+    {
+      return Result(UNSAT);
+    }
+    else
+    {
+      return Result(UNKNOWN);
+    }
+  }
 };
 }  // namespace smt
 

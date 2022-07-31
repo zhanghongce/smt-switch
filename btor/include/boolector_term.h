@@ -75,6 +75,7 @@ class BoolectorTerm : public AbsTerm
   BoolectorTerm(Btor * b, BoolectorNode * n);
   ~BoolectorTerm();
   std::size_t hash() const override;
+  std::size_t get_id() const override;
   bool compare(const Term & absterm) const override;
   Op get_op() const override;
   Sort get_sort() const override;
@@ -89,6 +90,11 @@ class BoolectorTerm : public AbsTerm
   TermIter begin() override;
   TermIter end() override;
   std::string print_value_as(SortKind sk) override;
+
+  // getters for solver-specific objects
+  // for interacting with third-party Boolector-specific software
+
+  BoolectorNode * get_btor_node() const { return node; };
 
  protected:
   Btor * btor;

@@ -15,6 +15,7 @@
 **/
 
 #include "boolector_solver.h"
+#include "solver_utils.h"
 
 extern "C" {
 #include "btornode.h"
@@ -37,13 +38,12 @@ const std::unordered_map<PrimOp, un_fun> unary_ops({ { Not, boolector_not },
                                                      { BVNeg,
                                                        boolector_neg } });
 
-// Indexed Operators are implemented in boolector_solver.h in apply
+// Indexed Operators are implemented inline for make_term
 const std::unordered_map<PrimOp, bin_fun> binary_ops(
     { { And, boolector_and },
       { Or, boolector_or },
       { Xor, boolector_xor },
       { Implies, boolector_implies },
-      { Iff, boolector_iff },
       { Equal, boolector_eq },
       { Distinct, boolector_ne },
       { Concat, boolector_concat },
@@ -105,11 +105,11 @@ void BoolectorSolver::set_opt(const std::string option, const std::string value)
       boolector_set_opt(btor, BTOR_OPT_INCREMENTAL, 1);
     }
   }
-  else if (option == "produce-unsat-cores")
+  else if (option == "produce-unsat-assumptions")
   {
     if (value == "true")
     {
-      // needs to be incremental
+      // needs to be incremental for getting unsat assumptions
       boolector_set_opt(btor, BTOR_OPT_INCREMENTAL, 1);
     }
   }
@@ -314,50 +314,18 @@ Result BoolectorSolver::check_sat()
 
 Result BoolectorSolver::check_sat_assuming(const TermVec & assumptions)
 {
-  // boolector supports assuming arbitrary one-bit expressions,
-  // not just boolean literals
-  std::shared_ptr<BoolectorTerm> bt;
-  for (auto a : assumptions)
-  {
-    bt = std::static_pointer_cast<BoolectorTerm>(a);
+  return check_sat_assuming(assumptions.begin(), assumptions.end());
+}
 
-    bool is_one_bit = true;
+Result BoolectorSolver::check_sat_assuming_list(const TermList & assumptions)
+{
+  return check_sat_assuming(assumptions.begin(), assumptions.end());
+}
 
-    BoolectorSort s = boolector_get_sort(bt->btor, bt->node);
-    // booleans are bit-vectors in boolector
-    is_one_bit &= boolector_is_bitvec_sort(bt->btor, s);
-    is_one_bit &= boolector_get_width(bt->btor, bt->node) == 1;
-
-    // bool const_or_negated = a->is_symbolic_const();
-    // if (!const_or_negated && bt->negated)
-    // {
-    //   Term c = *(a->begin());
-    //   const_or_negated = c->is_symbolic_const();
-    // }
-    // is_literal &= const_or_negated;
-
-    if (!is_one_bit)
-    {
-      throw IncorrectUsageException(
-          "Assumptions to check_sat_assuming must be boolean expressions");
-    }
-
-    boolector_assume(btor, bt->node);
-  }
-
-  int32_t res = boolector_sat(btor);
-  if (res == BOOLECTOR_SAT)
-  {
-    return Result(SAT);
-  }
-  else if (res == BOOLECTOR_UNSAT)
-  {
-    return Result(UNSAT);
-  }
-  else
-  {
-    return Result(UNKNOWN);
-  }
+Result BoolectorSolver::check_sat_assuming_set(
+    const UnorderedTermSet & assumptions)
+{
+  return check_sat_assuming(assumptions.begin(), assumptions.end());
 }
 
 void BoolectorSolver::push(uint64_t num)
@@ -371,6 +339,8 @@ void BoolectorSolver::pop(uint64_t num)
   boolector_pop(btor, num);
   context_level -= num;
 }
+
+uint64_t BoolectorSolver::get_context_level() const { return context_level; }
 
 Term BoolectorSolver::get_value(const Term & t) const
 {
@@ -452,7 +422,7 @@ Term BoolectorSolver::get_value(const Term & t) const
   {
     std::string msg("Can't get value for term with sort constructor = ");
     msg += to_string(sk);
-    throw IncorrectUsageException(msg.c_str());
+    throw IncorrectUsageException(msg);
   }
   return result;
 }
@@ -508,7 +478,7 @@ UnorderedTermMap BoolectorSolver::get_array_values(const Term & arr,
   return assignments;
 }
 
-void BoolectorSolver::get_unsat_core(UnorderedTermSet & out)
+void BoolectorSolver::get_unsat_assumptions(UnorderedTermSet & out)
 {
   BoolectorNode ** bcore = boolector_get_failed_assumptions(btor);
   while (*bcore)
@@ -535,7 +505,7 @@ Sort BoolectorSolver::make_sort(SortKind sk) const
   {
     std::string msg("Boolector does not support sort ");
     msg += to_string(sk);
-    throw NotImplementedException(msg.c_str());
+    throw NotImplementedException(msg);
   }
 }
 
@@ -548,10 +518,10 @@ Sort BoolectorSolver::make_sort(SortKind sk, uint64_t size) const
   }
   else
   {
-    std::string msg("Can't create sort from sort constructor ");
+    std::string msg("Can't create sort from sort kind ");
     msg += to_string(sk);
     msg += " with int argument.";
-    throw IncorrectUsageException(msg.c_str());
+    throw IncorrectUsageException(msg);
   }
 }
 
@@ -577,10 +547,10 @@ Sort BoolectorSolver::make_sort(SortKind sk,
   }
   else
   {
-    std::string msg("Can't create sort from sort constructor ");
+    std::string msg("Can't create sort from sort kind ");
     msg += to_string(sk);
     msg += " with two sort arguments.";
-    throw IncorrectUsageException(msg.c_str());
+    throw IncorrectUsageException(msg);
   }
 }
 
@@ -619,8 +589,8 @@ Sort BoolectorSolver::make_sort(SortKind sk, const SortVec & sorts) const
       btor_sorts.push_back(bs->sort);
     }
 
-    BoolectorSort btor_fun_sort =
-        boolector_fun_sort(btor, &btor_sorts[0], arity, btor_return_sort->sort);
+    BoolectorSort btor_fun_sort = boolector_fun_sort(
+        btor, btor_sorts.data(), arity, btor_return_sort->sort);
     return std::make_shared<BoolectorUFSort>
         (btor, btor_fun_sort, sorts, returnsort);
   }
@@ -641,15 +611,23 @@ Sort BoolectorSolver::make_sort(SortKind sk, const SortVec & sorts) const
     std::string msg("Can't create sort from sort constructor ");
     msg += to_string(sk);
     msg += " with a vector of sorts";
-    throw IncorrectUsageException(msg.c_str());
+    throw IncorrectUsageException(msg);
   }
+}
+
+Sort BoolectorSolver::make_sort(const Sort & sort_con,
+                                const SortVec & sorts) const
+
+{
+  throw IncorrectUsageException(
+      "Boolector does not support uninterpreted sort construction");
 }
 
 Term BoolectorSolver::make_symbol(const std::string name, const Sort & sort)
 {
   // check that name is available
   // avoids memory leak when boolector aborts
-  if (symbol_names.find(name) != symbol_names.end())
+  if (symbol_table.find(name) != symbol_table.end())
   {
     throw IncorrectUsageException("symbol " + name + " has already been used.");
   }
@@ -674,8 +652,18 @@ Term BoolectorSolver::make_symbol(const std::string name, const Sort & sort)
 
   // note: giving the symbol a null Op
   Term term = std::make_shared<BoolectorTerm> (btor, n);
-  symbol_names.insert(name);
+  symbol_table[name] = term;
   return term;
+}
+
+Term BoolectorSolver::get_symbol(const std::string & name)
+{
+  auto it = symbol_table.find(name);
+  if (it == symbol_table.end())
+  {
+    throw IncorrectUsageException("Symbol named " + name + " does not exist.");
+  }
+  return it->second;
 }
 
 Term BoolectorSolver::make_param(const std::string name, const Sort & sort)
@@ -730,7 +718,7 @@ Term BoolectorSolver::make_term(Op op, const Term & t) const
     {
       std::string msg = "Could not find Boolector implementation of ";
       msg += to_string(op.prim_op);
-      throw IncorrectUsageException(msg.c_str());
+      throw IncorrectUsageException(msg);
     }
     return std::make_shared<BoolectorTerm> (btor, btor_res);
   }
@@ -755,12 +743,7 @@ Term BoolectorSolver::make_term(Op op,
                                 const Term & t1,
                                 const Term & t2) const
 {
-  if (op.prim_op == Forall || op.prim_op == Exists)
-  {
-    throw IncorrectUsageException(
-        "Expecting exactly one parameter and a body formula for quantifier op");
-  }
-  else if (op.num_idx == 0)
+  if (op.num_idx == 0)
   {
     return apply_prim_op(op.prim_op, t0, t1, t2);
   }
@@ -774,12 +757,7 @@ Term BoolectorSolver::make_term(Op op,
 
 Term BoolectorSolver::make_term(Op op, const TermVec & terms) const
 {
-  if (terms.size() != 2 && (op.prim_op == Forall || op.prim_op == Exists))
-  {
-    throw IncorrectUsageException(
-        "Expecting exactly one parameter and a body formula for quantifier op");
-  }
-  else if (op.num_idx == 0)
+  if (op.num_idx == 0)
   {
     return apply_prim_op(op.prim_op, terms);
   }
@@ -879,7 +857,7 @@ Term BoolectorSolver::apply_prim_op(PrimOp op, Term t) const
   {
     std::string msg(to_string(op));
     msg += " unsupported or can't be applied to a single term.";
-    throw IncorrectUsageException(msg.c_str());
+    throw IncorrectUsageException(msg);
   }
 }
 
@@ -901,7 +879,7 @@ Term BoolectorSolver::apply_prim_op(PrimOp op, Term t0, Term t1) const
 
       std::shared_ptr<BoolectorTerm> bt0 =
           std::static_pointer_cast<BoolectorTerm>(t0);
-      result = boolector_apply(btor, &args[0], 1, bt0->node);
+      result = boolector_apply(btor, args.data(), 1, bt0->node);
     }
     else if (op == Forall)
     {
@@ -911,7 +889,7 @@ Term BoolectorSolver::apply_prim_op(PrimOp op, Term t0, Term t1) const
           std::static_pointer_cast<BoolectorTerm>(t1);
       std::vector<BoolectorNode *> params({ bt0->node });
       return std::make_shared<BoolectorTerm>(
-          btor, boolector_forall(btor, &params[0], 1, bt1->node));
+          btor, boolector_forall(btor, params.data(), 1, bt1->node));
     }
     else if (op == Exists)
     {
@@ -921,7 +899,7 @@ Term BoolectorSolver::apply_prim_op(PrimOp op, Term t0, Term t1) const
           std::static_pointer_cast<BoolectorTerm>(t1);
       std::vector<BoolectorNode *> params({ bt0->node });
       return std::make_shared<BoolectorTerm>(
-          btor, boolector_exists(btor, &params[0], 1, bt1->node));
+          btor, boolector_exists(btor, params.data(), 1, bt1->node));
     }
     else
     {
@@ -933,7 +911,7 @@ Term BoolectorSolver::apply_prim_op(PrimOp op, Term t0, Term t1) const
   {
     std::string msg(to_string(op));
     msg += " unsupported or can't be applied to two terms.";
-    throw IncorrectUsageException(msg.c_str());
+    throw IncorrectUsageException(msg);
   }
 }
 
@@ -958,7 +936,31 @@ Term BoolectorSolver::apply_prim_op(PrimOp op, Term t0, Term t1, Term t2) const
 
       std::shared_ptr<BoolectorTerm> bt0 =
           std::static_pointer_cast<BoolectorTerm>(t0);
-      result = boolector_apply(btor, &args[0], 2, bt0->node);
+      result = boolector_apply(btor, args.data(), 2, bt0->node);
+    }
+    else if (op == Forall)
+    {
+      std::shared_ptr<BoolectorTerm> bt0 =
+          std::static_pointer_cast<BoolectorTerm>(t0);
+      std::shared_ptr<BoolectorTerm> bt1 =
+          std::static_pointer_cast<BoolectorTerm>(t1);
+      std::shared_ptr<BoolectorTerm> bt2 =
+          std::static_pointer_cast<BoolectorTerm>(t2);
+      std::vector<BoolectorNode *> params({ bt0->node, bt1->node });
+      return std::make_shared<BoolectorTerm>(
+          btor, boolector_forall(btor, params.data(), 2, bt2->node));
+    }
+    else if (op == Exists)
+    {
+      std::shared_ptr<BoolectorTerm> bt0 =
+          std::static_pointer_cast<BoolectorTerm>(t0);
+      std::shared_ptr<BoolectorTerm> bt1 =
+          std::static_pointer_cast<BoolectorTerm>(t1);
+      std::shared_ptr<BoolectorTerm> bt2 =
+          std::static_pointer_cast<BoolectorTerm>(t2);
+      std::vector<BoolectorNode *> params({ bt0->node, bt1->node });
+      return std::make_shared<BoolectorTerm>(
+          btor, boolector_exists(btor, params.data(), 2, bt2->node));
     }
     else
     {
@@ -971,7 +973,7 @@ Term BoolectorSolver::apply_prim_op(PrimOp op, Term t0, Term t1, Term t2) const
   {
     std::string msg(to_string(op));
     msg += " unsupported or can't be applied to three terms.";
-    throw IncorrectUsageException(msg.c_str());
+    throw IncorrectUsageException(msg);
   }
 }
 
@@ -987,39 +989,85 @@ Term BoolectorSolver::apply_prim_op(PrimOp op, TermVec terms) const
   {
     return apply_prim_op(op, terms[0]);
   }
-  else if (size == 3)
+  else if (size == 3 && ternary_ops.find(op) != ternary_ops.end())
   {
     return apply_prim_op(op, terms[0], terms[1], terms[2]);
   }
-  else
+  else if (op == Apply)
   {
-    if (op == Apply)
+    std::vector<BoolectorNode *> args;
+    args.reserve(size - 1);
+    std::shared_ptr<BoolectorTerm> bt;
+    for (size_t i = 1; i < size; ++i)
     {
-      TermVec termargs;
-      termargs.reserve(size - 1);
-      std::vector<BoolectorNode *> args;
-      args.reserve(size - 1);
-      std::shared_ptr<BoolectorTerm> bt;
-      for (size_t i = 1; i < size; ++i)
-      {
-        bt = std::static_pointer_cast<BoolectorTerm>(terms[i]);
-        args.push_back(bt->node);
-        termargs.push_back(terms[i]);
-      }
-      std::shared_ptr<BoolectorTerm> bt0 =
-          std::static_pointer_cast<BoolectorTerm>(terms[0]);
-      BoolectorNode * result = boolector_apply(btor, &args[0], args.size(), bt0->node);
+      bt = std::static_pointer_cast<BoolectorTerm>(terms[i]);
+      args.push_back(bt->node);
+    }
+    std::shared_ptr<BoolectorTerm> bt0 =
+        std::static_pointer_cast<BoolectorTerm>(terms[0]);
+    BoolectorNode * result =
+        boolector_apply(btor, args.data(), args.size(), bt0->node);
 
-      return std::make_shared<BoolectorTerm> (btor, result);
+    return std::make_shared<BoolectorTerm>(btor, result);
+  }
+  else if (is_variadic(op))
+  {
+    // assuming they are binary operators extended to n arguments
+    auto btor_fun = binary_ops.at(op);
+    // get BoolectorNodes
+    std::vector<BoolectorNode *> bargs;
+    bargs.reserve(size);
+    for (const auto & tt : terms)
+    {
+      bargs.push_back(std::static_pointer_cast<BoolectorTerm>(tt)->node);
+    }
+
+    BoolectorNode * res = btor_fun(btor, bargs[0], bargs[1]);
+    BoolectorNode * trailing_res = res;
+    for (size_t i = 2; i < size; ++i)
+    {
+      res = btor_fun(btor, res, bargs[i]);
+      boolector_release(btor, trailing_res);
+      trailing_res = res;
+    }
+    return std::make_shared<BoolectorTerm>(btor, res);
+  }
+  else if (op == Forall || op == Exists)
+  {
+    std::vector<BoolectorNode *> bparams;
+    bparams.reserve(terms.size() - 1);
+    for (size_t i = 0; i + 1 < terms.size(); ++i)
+    {
+      bparams.push_back(
+          std::static_pointer_cast<BoolectorTerm>(terms[i])->node);
+    }
+    BoolectorNode * bbody =
+        std::static_pointer_cast<BoolectorTerm>(terms.back())->node;
+    BoolectorNode * bres;
+    if (op == Forall)
+    {
+      bres = boolector_forall(btor, bparams.data(), bparams.size(), bbody);
     }
     else
     {
-      std::string msg(to_string(op));
-      msg += " cannot be applied to ";
-      msg += std::to_string(size);
-      msg += " terms.";
-      throw IncorrectUsageException(msg.c_str());
+      assert(op == Exists);
+      bres = boolector_exists(btor, bparams.data(), bparams.size(), bbody);
     }
+    return std::make_shared<BoolectorTerm>(btor, bres);
+  }
+  else if (op == Distinct)
+  {
+    // special case for distinct
+    // need to apply to O(n^2) distinct pairs
+    return make_distinct(this, terms);
+  }
+  else
+  {
+    std::string msg(to_string(op));
+    msg += " cannot be applied to ";
+    msg += std::to_string(size);
+    msg += " terms.";
+    throw IncorrectUsageException(msg.c_str());
   }
 }
 

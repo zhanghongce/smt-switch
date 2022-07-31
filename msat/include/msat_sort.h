@@ -37,9 +37,15 @@ class MsatSort : public AbsSort
   SortVec get_domain_sorts() const override;
   Sort get_codomain_sort() const override;
   std::string get_uninterpreted_name() const override;
+  size_t get_arity() const override;
+  SortVec get_uninterpreted_param_sorts() const override;
   Datatype get_datatype() const override;
-  bool compare(const Sort) const override;
+  bool compare(const Sort &) const override;
   SortKind get_sort_kind() const override;
+
+  // getters for solver-specific objects
+  // for interacting with third-party MathSAT-specific software
+  msat_type get_msat_type() const { return type; }
 
  protected:
   msat_env env;

@@ -21,24 +21,26 @@
 namespace smt {
 enum SolverEnum
 {
-  BTOR = 0,
-  CVC4,
-  MSAT,
-  YICES2,
-  // have separate enum for solver wrapped by LoggingSolver with Shadow DAG
-  BTOR_LOGGING,
-  CVC4_LOGGING,
-  MSAT_LOGGING,
-  YICES2_LOGGING,
+  BTOR = 0,  // boolector
+  BZLA,      // bitwuzla
+  CVC5,      // cvc5
+  MSAT,      // mathsat
+  YICES2,    // yices2
+  Z3,        // z3
+
   // interpolating solvers -- note these cannot be logging solvers
   // because the solver takes the initiative in creating the interpolant
   // so there's no way to keep a DAG at the smt-switch level
-  MSAT_INTERPOLATOR
+  MSAT_INTERPOLATOR,
+  CVC5_INTERPOLATOR,
+  GENERIC_SOLVER
+
+  // TODO: when adding a new enum, also add to python interface in enums_dec.pxi
+  // and enums_imp.pxi
 };
 
 enum SolverAttribute
 {
-  // this enum is wrapped by a LoggingSolver
   LOGGING = 0,
   // supports traversing terms with iteration
   TERMITER,
@@ -61,28 +63,24 @@ enum SolverAttribute
   THEORY_DATATYPE,
   // supports quantifiers
   QUANTIFIERS,
+  // supports zero arity uninterpreted sorts
+  UNINTERP_SORT,
+  // supports non-zero arity uninterpreted sorts
+  PARAM_UNINTERP_SORT,
   // aliases booleans and bit-vectors of size one
-  BOOL_BV1_ALIASING
-};
+  BOOL_BV1_ALIASING,
+  // supports setting a time limit
+  TIMELIMIT
 
-/** Returns true iff the SolverEnum corresponds to a LoggingSolver
- *  @param se the solver enum to check
- *  @return true iff the se is a *_LOGGING enum
- */
-bool is_logging_solver_enum(SolverEnum se);
+  // TODO: when adding a new enum, also add to python interface in enums_dec.pxi
+  // and enums_imp.pxi
+};
 
 /** Returns true iff the SolverEnum corresponds to an Interpolator
  *  @param se the solver enum to check
  *  @return true iff the se is a *_INTERPOLATOR enum
  */
 bool is_interpolator_solver_enum(SolverEnum se);
-
-/** Maps a non-logging solver enum to the logging version
- *  e.g. BTOR -> BTOR_LOGGING
- *  @param se a non-logging solver enum to map
- *  @return the logging solver version of this enum
- */
-SolverEnum get_logging_solver_enum(SolverEnum se);
 
 bool solver_has_attribute(SolverEnum se, SolverAttribute sa);
 
@@ -91,6 +89,10 @@ std::unordered_set<SolverAttribute> get_solver_attributes(SolverEnum se);
 std::ostream & operator<<(std::ostream & o, SolverEnum e);
 
 std::string to_string(SolverEnum e);
+
+std::ostream & operator<<(std::ostream & o, SolverAttribute sa);
+
+std::string to_string(SolverAttribute a);
 
 }  // namespace smt
 

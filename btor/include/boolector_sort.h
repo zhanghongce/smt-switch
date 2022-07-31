@@ -40,9 +40,16 @@ class BoolectorSortBase : public AbsSort
   SortVec get_domain_sorts() const override;
   Sort get_codomain_sort() const override;
   std::string get_uninterpreted_name() const override;
+  size_t get_arity() const override;
+  SortVec get_uninterpreted_param_sorts() const override;
   Datatype get_datatype() const override;
-  bool compare(const Sort s) const override;
+  bool compare(const Sort & s) const override;
   SortKind get_sort_kind() const override { return sk; };
+
+  // getters for solver-specific objects
+  // for interacting with third-party Boolector-specific software
+
+  BoolectorSort get_btor_sort() const { return sort; };
 
  protected:
   Btor * btor;
@@ -96,13 +103,45 @@ class BoolectorUFSort : public BoolectorSortBase
   BoolectorUFSort(Btor * b, BoolectorSort s, SortVec sorts, Sort sort)
       : BoolectorSortBase(FUNCTION, b, s),
         domain_sorts(sorts),
-        codomain_sort(sort){};
-  SortVec get_domain_sorts() const override { return domain_sorts; };
+        codomain_sort(sort),
+        complete(true){};
+
+  // this constructor is used by BoolectorTerm::get_sort()
+  // more info for flag complete below
+  BoolectorUFSort(Btor * b, BoolectorSort s, Sort codomain)
+      : BoolectorSortBase(FUNCTION, b, s),
+        codomain_sort(codomain),
+        complete(false)
+  {
+  }
+
+  SortVec get_domain_sorts() const override
+  {
+    if (complete)
+    {
+      return domain_sorts;
+    }
+    else
+    {
+      throw SmtException(
+          "Cannot recover domain from sort obtained with get_sort in "
+          "boolector");
+    }
+  };
+
   Sort get_codomain_sort() const override { return codomain_sort; };
 
  protected:
   SortVec domain_sorts;
   Sort codomain_sort;
+
+  // HACK boolector has no way of recovering domain sorts for arity > 1
+  // functions
+  //      still want to allow getting a sort, but that information is lost
+  //      if it's important, you can always use a logging solver
+  //      for now just set this flag to show that this is not a
+  //      "complete" sort representation
+  bool complete;
 
   friend class BoolectorSolver;
 };

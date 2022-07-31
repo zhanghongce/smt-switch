@@ -17,23 +17,7 @@
 
 #include "printing_solver.h"
 #include "utils.h"
-
-/* string macros for the SMT-LIB commands */
-#define SET_OPTION_STR "set-option"
-#define SET_LOGIC_STR "set-logic"
-#define DECLARE_FUN_STR "declare-fun"
-#define DECLARE_SORT_STR "declare-sort"
-#define ASSERT_STR "assert"
-#define CHECK_SAT_STR "check-sat"
-#define CHECK_SAT_ASSUMING_STR "check-sat-assuming"
-#define GET_VALUE_STR "get-value"
-#define GET_UNSAT_ASSUMPTIONS_STR "get-unsat-assumptions"
-#define PUSH_STR "push"
-#define POP_STR "pop"
-#define RESET_ASSERTIONS_STR "reset-assertions"
-#define RESET_STR "reset"
-#define INTERPOLATION_GROUP_STR "interpolation-group"
-#define MSAT_GET_INTERPOLANT_STR "get-interpolant"
+#include "smtlib_utils.h"
 
 using namespace std;
 
@@ -49,6 +33,11 @@ PrintingSolver::PrintingSolver(SmtSolver s, std::ostream* os, PrintingStyleEnum 
 }
 
 PrintingSolver::~PrintingSolver() {}
+
+Term PrintingSolver::get_symbol(const string & name)
+{
+  return wrapped_solver->get_symbol(name);
+}
 
 Sort PrintingSolver::make_sort(const string name, uint64_t arity) const
 {
@@ -91,6 +80,11 @@ Sort PrintingSolver::make_sort(SortKind sk, const SortVec & sorts) const
   return wrapped_solver->make_sort(sk, sorts);
 }
 
+Sort PrintingSolver::make_sort(const Sort & sort_con,
+                               const SortVec & sorts) const
+{
+  return wrapped_solver->make_sort(sort_con, sorts);
+}
 
 Sort PrintingSolver::make_sort(const DatatypeDecl & d) const {
   throw NotImplementedException("PrintingSolver::make_sort");
@@ -202,10 +196,10 @@ Term PrintingSolver::get_value(const Term & t) const
   return wrapped_solver->get_value(t);
 }
 
-void PrintingSolver::get_unsat_core(UnorderedTermSet & out)
+void PrintingSolver::get_unsat_assumptions(UnorderedTermSet & out)
 {
   (*out_stream) << "(" << GET_UNSAT_ASSUMPTIONS_STR << ")" << endl;
-  wrapped_solver->get_unsat_core(out);
+  wrapped_solver->get_unsat_assumptions(out);
 }
 
 UnorderedTermMap PrintingSolver::get_array_values(const Term & arr,
@@ -267,6 +261,11 @@ void PrintingSolver::pop(uint64_t num) {
   wrapped_solver->pop(num); 
 }
 
+uint64_t PrintingSolver::get_context_level() const
+{
+  return wrapped_solver->get_context_level();
+}
+
 void PrintingSolver::reset_assertions() { 
   (*out_stream) << "(" << RESET_ASSERTIONS_STR << ")" << endl;
   wrapped_solver->reset_assertions(); 
@@ -280,12 +279,18 @@ Result PrintingSolver::get_interpolant(const Term & A,
    * The printing follows the internal implementation from msat_solver.h
    * in which the assertions are labeled by interpolation groups
    */
-  assert(style == PrintingStyleEnum::MSAT_STYLE);
-  (*out_stream) << "(" << ASSERT_STR << " (! " << A << " :" << INTERPOLATION_GROUP_STR << " g1))" << endl;
-  (*out_stream) << "(" << ASSERT_STR << " (! " << B << " :" << INTERPOLATION_GROUP_STR << " g2))" << endl;;
-  (*out_stream) << "(" << CHECK_SAT_STR << ")" << endl;
-  (*out_stream) << "(" << MSAT_GET_INTERPOLANT_STR << " (g1)" << ")" << endl;
-  (*out_stream) << "; when running mathsat, use `-interpolation=true` flag" << endl;
+  if (style == PrintingStyleEnum::MSAT_STYLE) {
+    (*out_stream) << "(" << ASSERT_STR << " (! " << A << " :" << INTERPOLATION_GROUP_STR << " g1))" << endl;
+    (*out_stream) << "(" << ASSERT_STR << " (! " << B << " :" << INTERPOLATION_GROUP_STR << " g2))" << endl;;
+    (*out_stream) << "(" << CHECK_SAT_STR << ")" << endl;
+    (*out_stream) << "(" << MSAT_GET_INTERPOLANT_STR << " (g1)" << ")" << endl;
+    (*out_stream) << "; when running mathsat, use `-interpolation=true` flag" << endl;
+  } else {
+    assert(style == PrintingStyleEnum::CVC5_STYLE);
+    (*out_stream) << "(" << ASSERT_STR << " " << A << ")" << endl;
+    (*out_stream) << "(" << CVC5_GET_INTERPOLANT_STR << " I (not " << B << "))"
+                  << endl;
+  }
   return wrapped_solver->get_interpolant(A, B, out_I);
 }
 

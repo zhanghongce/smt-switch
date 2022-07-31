@@ -27,7 +27,7 @@ using namespace std;
 namespace smt_tests {
 
 class UnitPrintTests : public ::testing::Test,
-                       public testing::WithParamInterface<SolverEnum>
+                       public testing::WithParamInterface<SolverConfiguration>
 {
  protected:
   void SetUp() override
@@ -45,12 +45,12 @@ class UnitPrintTests : public ::testing::Test,
 
 TEST_P(UnitPrintTests, SortKind)
 {
-  ASSERT_EQ(smt::to_string(ARRAY), "ARRAY");
-  ASSERT_EQ(smt::to_string(BOOL), "BOOL");
-  ASSERT_EQ(smt::to_string(BV), "BV");
-  ASSERT_EQ(smt::to_string(INT), "INT");
-  ASSERT_EQ(smt::to_string(REAL), "REAL");
-  ASSERT_EQ(smt::to_string(FUNCTION), "FUNCTION");
+  ASSERT_EQ(smt::to_string(ARRAY), "Array");
+  ASSERT_EQ(smt::to_string(BOOL), "Bool");
+  ASSERT_EQ(smt::to_string(BV), "BitVec");
+  ASSERT_EQ(smt::to_string(INT), "Int");
+  ASSERT_EQ(smt::to_string(REAL), "Real");
+  ASSERT_EQ(smt::to_string(FUNCTION), "Function");
 }
 
 TEST_P(UnitPrintTests, Sort)
@@ -96,6 +96,6 @@ TEST_P(UnitPrintTests, PrintValueAs)
 
 INSTANTIATE_TEST_SUITE_P(ParameterizedSolverPringUnit,
                          UnitPrintTests,
-                         testing::ValuesIn(available_solver_enums()));
+                         testing::ValuesIn(available_solver_configurations()));
 
 }  // namespace smt_tests

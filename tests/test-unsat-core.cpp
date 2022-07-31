@@ -27,18 +27,20 @@ using namespace std;
 namespace smt_tests {
 
 class UnsatCoreTests : public ::testing::Test,
-                 public ::testing::WithParamInterface<SolverEnum>
+                 public ::testing::WithParamInterface<SolverConfiguration>
 {
  protected:
   void SetUp() override
   {
-    s = create_solver(GetParam());
+    SolverConfiguration sc = GetParam();
+    s = create_solver(sc);
     s->set_opt("incremental", "true");
-    s->set_opt("produce-unsat-cores", "true");
+    s->set_opt("produce-unsat-assumptions", "true");
     boolsort = s->make_sort(BOOL);
+    bvsort = s->make_sort(BV, 8);
   }
   SmtSolver s;
-  Sort boolsort;
+  Sort boolsort, bvsort;
 };
 
 // FIXME there's some issue with the Yices2 context object which
@@ -54,20 +56,62 @@ TEST_P(UnsatCoreTests, UnsatCore)
   ASSERT_TRUE(r.is_unsat());
 
   UnorderedTermSet core;
-  s->get_unsat_core(core);
+  s->get_unsat_assumptions(core);
   ASSERT_TRUE(core.size() > 1);
 
   // for solvers using assumptions under the hood,
   // make sure they are re-added correctly
   r = s->check_sat();
   ASSERT_TRUE(r.is_sat());
-  ASSERT_THROW(s->get_unsat_core(core), SmtException);
-  s->pop();
+  // unsat core is only available after a call to check-sat-assuming, not
+  // check-sat
+  ASSERT_THROW(s->get_unsat_assumptions(core), SmtException);
+}
+
+TEST_P(UnsatCoreTests, UnsatCoreNonLit)
+{
+  // test that everything works in a fresh context
+  Term x = s->make_symbol("x", bvsort);
+  Term y = s->make_symbol("y", bvsort);
+
+  Term x_lt_y = s->make_term(BVUlt, x, y);
+  Term x_ge_y = s->make_term(BVUge, x, y);
+
+  Result r = s->check_sat_assuming({ x_lt_y, x_ge_y });
+  ASSERT_TRUE(r.is_unsat());
+
+  r = s->check_sat_assuming({x_lt_y});
+  ASSERT_TRUE(r.is_sat());
+
+  r = s->check_sat_assuming({x_lt_y, x_ge_y});
+  ASSERT_TRUE(r.is_unsat());
+
+  UnorderedTermSet core;
+  s->get_unsat_assumptions(core);
+  ASSERT_TRUE(core.size() > 1);
+}
+
+TEST_P(UnsatCoreTests, NoAssumptionsNeeded)
+{
+  Term a = s->make_symbol("a", boolsort);
+  Term b = s->make_symbol("b", boolsort);
+  // make unsat without assumptions
+  s->assert_formula(a);
+  Term nota = s->make_term(Not, a);
+  s->assert_formula(nota);
+
+  Result r = s->check_sat_assuming({ b });
+  UnorderedTermSet core;
+  s->get_unsat_assumptions(core);
+  // a and not(a) were not in assumptions
+  // so shouldn't show up in unsat assumptions
+  ASSERT_TRUE(core.find(a) == core.end());
+  ASSERT_TRUE(core.find(nota) == core.end());
 }
 
 INSTANTIATE_TEST_SUITE_P(
     ParameterizedSolverUnsatCoreTests,
     UnsatCoreTests,
-    testing::ValuesIn(filter_solver_enums({ UNSAT_CORE })));
+    testing::ValuesIn(filter_solver_configurations({ UNSAT_CORE })));
 
 }  // namespace smt_tests

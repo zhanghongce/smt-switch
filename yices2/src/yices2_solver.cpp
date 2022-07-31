@@ -17,13 +17,28 @@
 #include "yices2_solver.h"
 
 #include <inttypes.h>
+#include <signal.h>
+#include <unistd.h>
 
+#include "solver_utils.h"
 #include "yices.h"
 #include "yices2_extensions.h"
 
 using namespace std;
 
 namespace smt {
+
+// global variables for signal handling
+// (used to support time limit)
+context_t * running_ctx = nullptr;
+bool yices2_terminated = false;
+
+void yices2_timelimit_handler(int signum)
+{
+  assert(running_ctx != nullptr);
+  yices_stop_search(running_ctx);
+  yices2_terminated = true;
+}
 
 /* Yices2 Op mappings */
 typedef term_t (*yices_un_fun)(term_t);
@@ -53,30 +68,28 @@ const unordered_map<PrimOp, yices_un_fun> yices_unary_ops(
       { BVNeg, yices_bvneg } });
 
 const unordered_map<PrimOp, yices_bin_fun> yices_binary_ops(
-    { { And, yices_and2 },          { Or, yices_or2 },
-      { Xor, yices_xor2 },          { Implies, yices_implies },
-      { Iff, yices_iff },           { Plus, yices_add },
-      { Minus, yices_sub },         { Mult, yices_mul },
-      { Div, yices_division },      { Lt, yices_arith_lt_atom },
-      { IntDiv, yices_idiv },       { Le, yices_arith_leq_atom },
-      { Gt, yices_arith_gt_atom },  { Ge, yices_arith_geq_atom },
-      { Equal, yices_eq },          { Mod, yices_imod },
-      { Concat, yices_bvconcat2 },  { BVAnd, yices_bvand2 },
-      { BVOr, yices_bvor2 },        { BVXor, yices_bvxor2 },
-      { BVNand, yices_bvnand },     { BVNor, yices_bvnor },
-      { BVXnor, yices_bvxnor },     { BVAdd, yices_bvadd },
-      { BVSub, yices_bvsub },       { BVMul, yices_bvmul },
-      { BVUdiv, yices_bvdiv },      { BVUrem, yices_bvrem },
-      { BVSdiv, yices_bvsdiv },     { BVSrem, yices_bvsrem },
-      { BVSmod, yices_bvsmod },     { BVShl, yices_bvshl },
-      { BVAshr, yices_bvashr },     { BVLshr, yices_bvlshr },
-      { BVUlt, yices_bvlt_atom },   { BVUle, yices_bvle_atom },
-      { BVUgt, yices_bvgt_atom },   { BVUge, yices_bvge_atom },
-      { BVSle, yices_bvsle_atom },  { BVSlt, yices_bvslt_atom },
-      { BVSge, yices_bvsge_atom },  { BVSgt, yices_bvsgt_atom },
-      { Select, ext_yices_select }, { Apply, yices_application1 }
-
-    });
+    { { And, yices_and2 },           { Or, yices_or2 },
+      { Xor, yices_xor2 },           { Implies, yices_implies },
+      { Plus, yices_add },           { Minus, yices_sub },
+      { Mult, yices_mul },           { Div, yices_division },
+      { Lt, yices_arith_lt_atom },   { IntDiv, yices_idiv },
+      { Le, yices_arith_leq_atom },  { Gt, yices_arith_gt_atom },
+      { Ge, yices_arith_geq_atom },  { Equal, yices_eq },
+      { Mod, yices_imod },           { Concat, yices_bvconcat2 },
+      { BVAnd, yices_bvand2 },       { BVOr, yices_bvor2 },
+      { BVXor, yices_bvxor2 },       { BVNand, yices_bvnand },
+      { BVNor, yices_bvnor },        { BVXnor, yices_bvxnor },
+      { BVAdd, yices_bvadd },        { BVSub, yices_bvsub },
+      { BVMul, yices_bvmul },        { BVUdiv, yices_bvdiv },
+      { BVUrem, yices_bvrem },       { BVSdiv, yices_bvsdiv },
+      { BVSrem, yices_bvsrem },      { BVSmod, yices_bvsmod },
+      { BVShl, yices_bvshl },        { BVAshr, yices_bvashr },
+      { BVLshr, yices_bvlshr },      { BVUlt, yices_bvlt_atom },
+      { BVUle, yices_bvle_atom },    { BVUgt, yices_bvgt_atom },
+      { BVUge, yices_bvge_atom },    { BVSle, yices_bvsle_atom },
+      { BVSlt, yices_bvslt_atom },   { BVSge, yices_bvsge_atom },
+      { BVSgt, yices_bvsgt_atom },   { Select, ext_yices_select },
+      { Apply, yices_application1 }, { BVComp, ext_yices_bvcomp } });
 
 const unordered_map<PrimOp, yices_tern_fun> yices_ternary_ops(
     { { And, yices_and3 },
@@ -121,7 +134,11 @@ void Yices2Solver::set_opt(const std::string option, const std::string value)
       yices_set_config(config, "mode", "push-pop");
     }
   }
-  else if (option == "produce-unsat-cores")
+  else if (option == "time-limit")
+  {
+    time_limit = stoi(value);
+  }
+  else if (option == "produce-unsat-assumptions")
   {
     // nothing to be done
     ;
@@ -299,7 +316,9 @@ void Yices2Solver::assert_formula(const Term & t)
 
 Result Yices2Solver::check_sat()
 {
+  timelimit_start();
   smt_status_t res = yices_check_context(ctx, NULL);
+  bool tl_triggered = timelimit_end();
 
   if (yices_error_code() != 0)
   {
@@ -315,6 +334,10 @@ Result Yices2Solver::check_sat()
   {
     return Result(UNSAT);
   }
+  else if (tl_triggered)
+  {
+    return Result(UNKNOWN, "Time limit reached.");
+  }
   else
   {
     return Result(UNKNOWN);
@@ -323,34 +346,6 @@ Result Yices2Solver::check_sat()
 
 Result Yices2Solver::check_sat_assuming(const TermVec & assumptions)
 {
-  // expecting (possibly negated) boolean literals
-  for (auto a : assumptions)
-  {
-    if (a->get_sort()->get_sort_kind() != BOOL)
-    {
-      throw IncorrectUsageException(
-          "Cannot assume a term with sort other than BOOL.");
-    }
-    else if (!a->is_symbolic_const())
-    {
-      shared_ptr<Yices2Term> yt = static_pointer_cast<Yices2Term>(a);
-      term_constructor_t tc = yices_term_constructor(yt->term);
-      if (tc == YICES_NOT_TERM && yices_term_num_children(yt->term) == 1
-          && yices_term_constructor(yices_term_child(yt->term, 0))
-                 == YICES_UNINTERPRETED_TERM
-          && yices_term_num_children(yices_term_child(yt->term, 0)) == 0)
-      {
-        // this is a negated boolean literal
-        continue;
-      }
-      else
-      {
-        throw IncorrectUsageException(
-            "Expecting boolean indicator literals but got: " + a->to_string());
-      }
-    }
-  }
-
   vector<term_t> y_assumps;
   y_assumps.reserve(assumptions.size());
 
@@ -361,32 +356,72 @@ Result Yices2Solver::check_sat_assuming(const TermVec & assumptions)
     y_assumps.push_back(ya->term);
   }
 
-  smt_status_t res = yices_check_context_with_assumptions(
-      ctx, NULL, y_assumps.size(), &y_assumps[0]);
-
-  if (yices_error_code() != 0)
-  {
-    std::string msg(yices_error_string());
-    throw InternalSolverException(msg.c_str());
-  }
-
-  if (res == STATUS_SAT)
-  {
-    return Result(SAT);
-  }
-  else if (res == STATUS_UNSAT)
-  {
-    return Result(UNSAT);
-  }
-  else
-  {
-    return Result(UNKNOWN);
-  }
+  return check_sat_assuming(y_assumps);
 }
 
-void Yices2Solver::push(uint64_t num) { yices_push(ctx); }
+Result Yices2Solver::check_sat_assuming_list(const TermList & assumptions)
+{
+  vector<term_t> y_assumps;
+  y_assumps.reserve(assumptions.size());
 
-void Yices2Solver::pop(uint64_t num) { yices_pop(ctx); }
+  shared_ptr<Yices2Term> ya;
+  for (auto a : assumptions)
+  {
+    ya = static_pointer_cast<Yices2Term>(a);
+    y_assumps.push_back(ya->term);
+  }
+
+  return check_sat_assuming(y_assumps);
+}
+
+Result Yices2Solver::check_sat_assuming_set(
+    const UnorderedTermSet & assumptions)
+{
+  vector<term_t> y_assumps;
+  y_assumps.reserve(assumptions.size());
+
+  shared_ptr<Yices2Term> ya;
+  for (auto a : assumptions)
+  {
+    ya = static_pointer_cast<Yices2Term>(a);
+    y_assumps.push_back(ya->term);
+  }
+
+  return check_sat_assuming(y_assumps);
+}
+
+void Yices2Solver::push(uint64_t num)
+{
+  if (yices_context_status(ctx) == STATUS_UNSAT)
+  {
+    pushes_after_unsat += num;
+    return;
+  }
+
+  for (size_t i = 0; i < num; ++i)
+  {
+    yices_push(ctx);
+  }
+
+  context_level += num;
+}
+
+void Yices2Solver::pop(uint64_t num)
+{
+  for (size_t i = 0; i < num; ++i)
+  {
+    if (pushes_after_unsat)
+    {
+      pushes_after_unsat--;
+      continue;
+    }
+    yices_pop(ctx);
+  }
+
+  context_level -= num;
+}
+
+uint64_t Yices2Solver::get_context_level() const { return context_level; }
 
 Term Yices2Solver::get_value(const Term & t) const
 {
@@ -413,7 +448,7 @@ UnorderedTermMap Yices2Solver::get_array_values(const Term & arr,
       "particular select of the array.");
 }
 
-void Yices2Solver::get_unsat_core(UnorderedTermSet & out)
+void Yices2Solver::get_unsat_assumptions(UnorderedTermSet & out)
 {
   term_vector_t ycore;
   yices_init_term_vector(&ycore);
@@ -444,6 +479,7 @@ Sort Yices2Solver::make_sort(const std::string name, uint64_t arity) const
   if (!arity)
   {
     y_sort = yices_new_uninterpreted_type();
+    yices_set_type_name(y_sort, name.c_str());
   }
   else
   {
@@ -630,18 +666,45 @@ Sort Yices2Solver::make_sort(SortKind sk, const SortVec & sorts) const
   return std::make_shared<Yices2Sort> (y_sort, true);
 }
 
+Sort Yices2Solver::make_sort(const Sort & sort_con, const SortVec & sorts) const
+{
+  throw NotImplementedException(
+      "Yices2 does not support uninterpreted sort constructors");
+}
+
 Term Yices2Solver::make_symbol(const std::string name, const Sort & sort)
 {
+  if (symbol_table.find(name) != symbol_table.end())
+  {
+    throw IncorrectUsageException("symbol " + name + " has already been used.");
+  }
+
   shared_ptr<Yices2Sort> ysort = static_pointer_cast<Yices2Sort>(sort);
   term_t y_term = yices_new_uninterpreted_term(ysort->type);
   yices_set_term_name(y_term, name.c_str());
 
+  Term sym;
   if (ysort->get_sort_kind() == FUNCTION)
   {
-    return std::make_shared<Yices2Term> (y_term, true);
+    sym = std::make_shared<Yices2Term>(y_term, true);
   }
+  else
+  {
+    sym = std::make_shared<Yices2Term>(y_term);
+  }
+  assert(sym);
+  symbol_table[name] = sym;
+  return sym;
+}
 
-  return std::make_shared<Yices2Term> (y_term);
+Term Yices2Solver::get_symbol(const std::string & name)
+{
+  auto it = symbol_table.find(name);
+  if (it == symbol_table.end())
+  {
+    throw IncorrectUsageException("Symbol named " + name + " does not exist.");
+  }
+  return it->second;
 }
 
 Term Yices2Solver::make_param(const std::string name, const Sort & sort)
@@ -870,7 +933,8 @@ Term Yices2Solver::make_term(Op op, const TermVec & terms) const
   {
     return make_term(op, terms[0], terms[1]);
   }
-  else if (size == 3)
+  else if (size == 3
+           && yices_ternary_ops.find(op.prim_op) != yices_ternary_ops.end())
   {
     return make_term(op, terms[0], terms[1], terms[2]);
   }
@@ -898,7 +962,34 @@ Term Yices2Solver::make_term(Op op, const TermVec & terms) const
 
     res = yices_application(yterm->term, size - 1, &yargs[0]);
   }
-  // else if() ... check the variadic terms list.
+  else if (is_variadic(op.prim_op) || op == Distinct)
+  {
+    vector<term_t> yargs;
+    yargs.reserve(size);
+    shared_ptr<Yices2Term> yterm;
+
+    // skip the first term (that's actually a function)
+    for (const auto & tt : terms)
+    {
+      yterm = static_pointer_cast<Yices2Term>(tt);
+      yargs.push_back(yterm->term);
+    }
+
+    if (yices_variadic_ops.find(op.prim_op) != yices_variadic_ops.end())
+    {
+      res = yices_variadic_ops.at(op.prim_op)(yargs.size(), yargs.data());
+    }
+    else
+    {
+      // assume it's a binary function extended to n args
+      auto yices_fun = yices_binary_ops.at(op.prim_op);
+      res = yices_fun(yargs[0], yargs[1]);
+      for (size_t i = 2; i < size; ++i)
+      {
+        res = yices_fun(res, yargs[i]);
+      }
+    }
+  }
   else
   {
     string msg("Can't apply ");
@@ -964,6 +1055,32 @@ void Yices2Solver::dump_smt2(std::string filename) const
 {
   throw NotImplementedException(
       "Dumping smt2 not supported by Yices2 backend.");
+}
+
+// helpers
+void Yices2Solver::timelimit_start()
+{
+  if (time_limit)
+  {
+    signal(SIGALRM, yices2_timelimit_handler);
+    assert(running_ctx == nullptr);
+    assert(!yices2_terminated);
+    running_ctx = ctx;
+    alarm(time_limit);
+  }
+}
+
+bool Yices2Solver::timelimit_end()
+{
+  bool res = false;
+  if (time_limit)
+  {
+    res |= yices2_terminated;
+    yices2_terminated = false;
+    running_ctx = nullptr;
+    alarm(0);
+  }
+  return res;
 }
 
 /* end Yices2Solver implementation */

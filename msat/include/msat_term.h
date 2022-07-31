@@ -66,6 +66,7 @@ class MsatTerm : public AbsTerm
   };
   ~MsatTerm(){};
   std::size_t hash() const override;
+  std::size_t get_id() const override;
   bool compare(const Term & absterm) const override;
   Op get_op() const override;
   Sort get_sort() const override;
@@ -80,6 +81,26 @@ class MsatTerm : public AbsTerm
   TermIter begin() override;
   TermIter end() override;
   std::string print_value_as(SortKind sk) override;
+
+  // getters for solver-specific objects
+  // for interacting with third-party MathSAT-specific software
+  msat_term get_msat_term() const
+  {
+    if (is_uf)
+    {
+      throw IncorrectUsageException("Cannot get msat_term from UF.");
+    }
+    return term;
+  }
+
+  msat_decl get_msat_decl() const
+  {
+    if (!is_uf)
+    {
+      throw IncorrectUsageException("Cannot get msat_decl from term.");
+    }
+    return decl;
+  }
 
  protected:
   msat_env env;

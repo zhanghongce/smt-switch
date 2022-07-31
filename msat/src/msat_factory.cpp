@@ -26,7 +26,6 @@ namespace smt {
 SmtSolver MsatSolverFactory::create(bool logging)
 {
   MsatSolver * ms = new MsatSolver();
-  ms->setup_env();
   SmtSolver solver(ms);
   if (logging)
   {
@@ -35,10 +34,9 @@ SmtSolver MsatSolverFactory::create(bool logging)
   return solver;
 }
 
-SmtSolver MsatSolverFactory::create_interpolating_solver(const MsatInterpolatorConfiguration & cfg)
+SmtSolver MsatSolverFactory::create_interpolating_solver()
 {
   MsatInterpolatingSolver * mis = new MsatInterpolatingSolver();
-  mis->setup_env(cfg);
   std::shared_ptr<MsatInterpolatingSolver> s(mis);
   return s;
 }

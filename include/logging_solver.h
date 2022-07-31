@@ -42,6 +42,7 @@ class LoggingSolver : public AbsSmtSolver
                  const Sort & sort2,
                  const Sort & sort3) const override;
   Sort make_sort(const SortKind sk, const SortVec & sorts) const override;
+  Sort make_sort(const Sort & sort_con, const SortVec & sorts) const override;
   Sort make_sort(const DatatypeDecl & d) const override;
 
   DatatypeDecl make_datatype_decl(const std::string & s) override;
@@ -61,6 +62,7 @@ class LoggingSolver : public AbsSmtSolver
                  uint64_t base = 10) const override;
   Term make_term(const Term & val, const Sort & sort) const override;
   Term make_symbol(const std::string name, const Sort & sort) override;
+  Term get_symbol(const std::string & name) override;
   Term make_param(const std::string name, const Sort & sort) override;
   Term make_term(const Op op, const Term & t) const override;
   Term make_term(const Op op, const Term & t0, const Term & t1) const override;
@@ -72,7 +74,7 @@ class LoggingSolver : public AbsSmtSolver
   Term get_value(const Term & t) const override;
   UnorderedTermMap get_array_values(const Term & arr,
                                     Term & out_const_base) const override;
-  void get_unsat_core(UnorderedTermSet & out) override;
+  void get_unsat_assumptions(UnorderedTermSet & out) override;
   // Will probably remove this eventually
   // For now, need to clear the hash table
   void reset() override;
@@ -83,36 +85,30 @@ class LoggingSolver : public AbsSmtSolver
   void assert_formula(const Term & t) override;
   Result check_sat() override;
   Result check_sat_assuming(const TermVec & assumptions) override;
+  Result check_sat_assuming_list(const TermList & assumptions) override;
+  Result check_sat_assuming_set(const UnorderedTermSet & assumptions) override;
   void push(uint64_t num = 1) override;
   void pop(uint64_t num = 1) override;
+  uint64_t get_context_level() const override;
   void reset_assertions() override;
 
  protected:
   SmtSolver wrapped_solver;  ///< the underlying solver
   std::unique_ptr<TermHashTable> hashtable;
+
+  std::unordered_map<std::string, Term> symbol_table;
+
   // stores a mapping from wrapped terms to logging terms
   // that were used in check_sat_assuming
   // this is so they can be recovered with the correct children/op
-  // after a call to get_unsat_core
+  // after a call to get_unsat_assumptions
   std::unique_ptr<UnorderedTermMap> assumption_cache;
 
-  /** Maps the wrapped_solver's SolverEnum to the logging
-   *  solver version
-   *  throws an exception if the SolverEnum is already
-   *  a logging solver (there's no reason to nest
-   *  LoggingSolvers)
-   */
-  static SolverEnum process_solver_enum(SolverEnum se)
-  {
-    if (is_logging_solver_enum(se))
-    {
-      throw IncorrectUsageException(
-          std::string("Got a logging solver as the underlying solver in ")
-          + "LoggingSolver construction. There's no reason to "
-          + "next LoggingSolvers");
-    }
-    return get_logging_solver_enum(se);
-  }
+  // NOTE this is a little ugly, but this needs to be incremented
+  // in const methods (make_term), so it is marked mutable
+  // this was better than making them non-const because most solvers
+  // can respect the const-ness of those make_term functions
+  mutable size_t next_term_id;  ///< used to give LoggingTerms a unique id
 };
 
 }  // namespace smt

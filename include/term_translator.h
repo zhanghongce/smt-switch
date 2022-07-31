@@ -28,9 +28,9 @@ namespace smt {
 /** Class for translating terms from *one* other solver to *one* new solver
  *  will fail if you try to convert terms from more than one solver
  *  e.g.
- *  SmtSolver s1 = CVC4SolverFactory::create(false);
+ *  SmtSolver s1 = Cvc5SolverFactory::create(false);
  *  SmtSolver s2 = MsatSolverFactory::create(false);
- *  SmtSolver s3 = CVC4SolverFactory::create(false);
+ *  SmtSolver s3 = Cvc5SolverFactory::create(false);
  *
  *  Term x = s1->make_symbol("x", s1->make_sort(INT));
  *  Term y = s2->make_symbol("y", s2->make_sort(INT));
@@ -43,8 +43,8 @@ namespace smt {
  *  // and then transferring y from s2 will trigger a comparison between x
  *  // and y. But these are terms from two different solvers and the static
  *  // pointer cast will be an incorrect cast.
- *  // if s2 were also a CVC4Solver, it depends on how the underlying solver
- *  // handles terms from different instances. In the case of CVC4, it will
+ *  // if s2 were also a Cvc5Solver, it depends on how the underlying solver
+ *  // handles terms from different instances. In the case of cvc5, it will
  *  // throw an exception
  *
  *  This class has no reference to the other solver because it's not needed
@@ -58,12 +58,20 @@ namespace smt {
 class TermTranslator
 {
  public:
-  TermTranslator(const SmtSolver & s) : solver(s) {}
+  TermTranslator(const SmtSolver & s) : solver(s)
+  {
+    // Generic solvers don't support
+    // term transfer
+    if (s->get_solver_enum() == SolverEnum::GENERIC_SOLVER)
+    {
+      throw SmtException("Generic Solvers do not support term transfer");
+    }
+  }
   /** Transfers a sort from the other solver to this solver
    *  @param the sort transfer
    *  @return a sort belonging to this solver
    */
-  Sort transfer_sort(const Sort & sort) const;
+  Sort transfer_sort(const Sort & sort);
 
   /** Transfers a term from the other solver to this solver
    *  @param term the term to transfer to the member variable solver
@@ -93,7 +101,14 @@ class TermTranslator
    *  called in this function)
    *  @return a term with the given value
    */
-  Term value_from_smt2(const std::string val, const Sort sort) const;
+  Term value_from_smt2(const std::string val, const Sort sort);
+  
+  /** translates an smtlib representation of a const rational "(/ a b)"
+   *  into a infix-style representation of a const rational "a / b"
+   * @param smtlib is the smtlib representation
+   * @return the infix-style representation
+   */
+  std::string infixize_rational(const std::string smtlib) const;
 
   /** identifies relevant casts to perform an operation
    *  assumes the operation is currently not well-sorted
@@ -135,6 +150,10 @@ class TermTranslator
   // it can still call non-const methods of the solver
   SmtSolver solver;  ///< solver to translate terms to
   UnorderedTermMap cache;
+  // map from uninterpreted sort names to the sort in the destination solver
+  // necessary because it needs to be the same exact uninterpreted sort
+  // cannot recreate it with the same name and get the same object back
+  std::unordered_map<std::string, Sort> uninterpreted_sorts;
 };
 }  // namespace smt
 

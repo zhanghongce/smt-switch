@@ -27,7 +27,7 @@ using namespace std;
 namespace smt_tests {
 
 class UnitTermTests : public ::testing::Test,
-                      public testing::WithParamInterface<SolverEnum>
+                      public testing::WithParamInterface<SolverConfiguration>
 {
  protected:
   void SetUp() override
@@ -57,6 +57,7 @@ TEST_P(UnitTermTests, FunOp)
 
 TEST_P(UnitTermTests, Array)
 {
+  SolverConfiguration sc = GetParam();
   Term arr = s->make_symbol("arr", arrsort);
   ASSERT_TRUE(arr->is_symbol());
   ASSERT_TRUE(arr->is_symbolic_const());
@@ -64,6 +65,6 @@ TEST_P(UnitTermTests, Array)
 
 INSTANTIATE_TEST_SUITE_P(ParameterizedSolverUnitTerm,
                          UnitTermTests,
-                         testing::ValuesIn(available_solver_enums()));
+                         testing::ValuesIn(available_solver_configurations()));
 
 }  // namespace smt_tests

@@ -31,7 +31,7 @@ namespace smt {
 enum PrintingStyleEnum
 {
   DEFAULT_STYLE = 0,
-  CVC4_STYLE,
+  CVC5_STYLE,
   MSAT_STYLE,
 };
 
@@ -52,7 +52,7 @@ class PrintingSolver : public AbsSmtSolver
   Term get_value(const Term & t) const override;
   UnorderedTermMap get_array_values(const Term & arr,
                                     Term & out_const_base) const override;
-  void get_unsat_core(UnorderedTermSet & out) override;
+  void get_unsat_assumptions(UnorderedTermSet & out) override;
   void reset() override;
   void set_opt(const std::string option, const std::string value) override;
   void set_logic(const std::string logic) override;
@@ -61,6 +61,7 @@ class PrintingSolver : public AbsSmtSolver
   Result check_sat_assuming(const TermVec & assumptions) override;
   void push(uint64_t num = 1) override;
   void pop(uint64_t num = 1) override;
+  uint64_t get_context_level() const override;
   void reset_assertions() override;
   Result get_interpolant(const Term & A,
                          const Term & B,
@@ -70,6 +71,7 @@ class PrintingSolver : public AbsSmtSolver
    * For example, creating terms is not printed, but the
    * created terms will appear in other commands (e.g., assert). 
    * */
+  Term get_symbol(const std::string & name) override;
   Sort make_sort(const SortKind sk) const override;
   Sort make_sort(const SortKind sk, uint64_t size) const override;
   Sort make_sort(const SortKind sk, const Sort & sort1) const override;
@@ -81,6 +83,7 @@ class PrintingSolver : public AbsSmtSolver
                  const Sort & sort2,
                  const Sort & sort3) const override;
   Sort make_sort(const SortKind sk, const SortVec & sorts) const override;
+  Sort make_sort(const Sort & sort_con, const SortVec & sorts) const override;
   Sort make_sort(const DatatypeDecl & d) const override;
   DatatypeDecl make_datatype_decl(const std::string & s) override;
   DatatypeConstructorDecl make_datatype_constructor_decl(

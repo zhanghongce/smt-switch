@@ -24,18 +24,19 @@
 namespace smt {
 
 const std::unordered_map<SortKind, std::string> sortkind2str(
-    { { ARRAY, "ARRAY" },
-      { BOOL, "BOOL" },
-      { BV, "BV" },
-      { INT, "INT" },
-      { REAL, "REAL" },
-      { FUNCTION, "FUNCTION" },
-      { UNINTERPRETED, "UNINTERPRETED" },
-      { DATATYPE, "DATATYPE"} });
+    { { ARRAY, "Array" },
+      { BOOL, "Bool" },
+      { BV, "BitVec" },
+      { INT, "Int" },
+      { REAL, "Real" },
+      { FUNCTION, "Function" },
+      { UNINTERPRETED, "Uninterpreted" },
+      { UNINTERPRETED_CONS, "UninterpretedSortConstructor" },
+      { DATATYPE, "Datatype" } });
 
 std::string to_string(SortKind sk)
 {
-  if (sk == NUM_SORT_CONS)
+  if (sk == NUM_SORT_KINDS)
   {
     return "null";
   }
@@ -55,7 +56,7 @@ std::ostream & operator<<(std::ostream & output, const Sort s)
 std::string AbsSort::to_string() const
 {
   SortKind sk = get_sort_kind();
-  if (sk == NUM_SORT_CONS)
+  if (sk == NUM_SORT_KINDS)
   {
     return "nullsort";
   }

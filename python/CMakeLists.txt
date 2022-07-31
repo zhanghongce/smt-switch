@@ -1,3 +1,61 @@
+# Note: using same pattern used in cvc5 for scikit-build / python module checking
+# Check if given Python module is installed and raises a FATAL_ERROR error
+# if the module cannot be found.
+function(check_python_module module)
+  execute_process(
+    COMMAND
+    ${PYTHON_EXECUTABLE} -c "import ${module}"
+    RESULT_VARIABLE
+      RET_MODULE_TEST
+    ERROR_QUIET
+  )
+  set(module_name ${ARGN})
+  if(NOT module_name)
+    set(module_name ${module})
+  endif()
+
+  if(RET_MODULE_TEST)
+    message(FATAL_ERROR
+        "Could not find module ${module_name} for Python "
+        "version ${PYTHON_VERSION_MAJOR}.${PYTHON_VERSION_MINOR}. "
+        "Make sure to install ${module_name} for this Python version "
+        "via \n`${PYTHON_EXECUTABLE} -m pip install ${module_name}'.\n"
+        "Note: You need to have pip installed for this Python version.")
+  endif()
+endfunction()
+
+
+# Check that scikit-build is installed
+# Provides CMake files for Python bindings
+# and used to find correct Python includes
+# and libraries
+check_python_module("skbuild" "scikit-build")
+
+# Find cmake modules distributed with scikit-build
+# They are distributed under <scikit-build directory>/resources/cmake
+execute_process(
+  COMMAND
+    ${PYTHON_EXECUTABLE} -c "from __future__ import print_function; \
+      import os; import skbuild; \
+      cmake_module_path=os.path.join(os.path.dirname(skbuild.__file__), \
+        'resources', 'cmake'); print(cmake_module_path, end='')"
+  OUTPUT_VARIABLE
+    SKBUILD_CMAKE_MODULE_PATH
+  RESULT_VARIABLE
+    RET_SKBUILD_CMAKE_MODULE_PATH
+)
+
+if (NOT EXISTS ${SKBUILD_CMAKE_MODULE_PATH})
+  message(FATAL_ERROR "Expected CMake module path from
+                       scikit-build at ${SKBUILD_CMAKE_MODULE_PATH}")
+endif()
+
+# Add scikit-build cmake files to cmake module path
+# Required for Cython target below
+list(APPEND CMAKE_MODULE_PATH ${SKBUILD_CMAKE_MODULE_PATH})
+
+include(FindPythonExtensions)
+
 if(POLICY CMP0057)
   # For cmake >= 3.3 this policy changed the behavior of IN_LIST
   # if the policy exists, we use the NEW behavior
@@ -6,61 +64,8 @@ endif()
 
 find_package(Cython 0.29 REQUIRED)
 
-include_directories()
-
-add_cython_target(smt_switch CXX)
-
-add_library(smt_switch MODULE ${smt_switch})
-
-include_directories("${PROJECT_SOURCE_DIR}/include")
-target_link_libraries(smt_switch smt-switch)
-
-# generate necessary collateral here
-include_directories(${CMAKE_CURRENT_LIST_DIR})     # For generated files
-set(GEN_OPTIONS --dest-dir ${CMAKE_CURRENT_LIST_DIR})
-
-if (BUILD_BTOR)
-  include_directories("${PROJECT_SOURCE_DIR}/btor/include")
-  target_link_libraries(smt_switch smt-switch-btor)
-  set(GEN_OPTIONS ${GEN_OPTIONS} --btor)
-endif()
-
-if (BUILD_CVC4)
-  include_directories("${PROJECT_SOURCE_DIR}/cvc4/include")
-  target_link_libraries(smt_switch smt-switch-cvc4)
-  set(GEN_OPTIONS ${GEN_OPTIONS} --cvc4)
-endif()
-
-if (BUILD_MSAT)
-  include_directories("${PROJECT_SOURCE_DIR}/msat/include")
-  target_link_libraries(smt_switch smt-switch-msat)
-  set(GEN_OPTIONS ${GEN_OPTIONS} --msat)
-endif()
-
-if (BUILD_YICES2)
-  include_directories("${PROJECT_SOURCE_DIR}/yices2/include")
-  target_link_libraries(smt_switch smt-switch-yices2)
-  set(GEN_OPTIONS ${GEN_OPTIONS} --yices2)
-endif()
-
-add_custom_target(gen-smt-solver-declarations
-  ALL
-  COMMAND
-    ${PYTHON_EXECUTABLE}
-    ${CMAKE_CURRENT_LIST_DIR}/gen-smt-solver-declarations.py
-    ${GEN_OPTIONS}
-  DEPENDS
-    gen-smt-solver-declarations.py
-  COMMENT
-    "Generate smt_solvers.{pxd,pxi}"
-  )
-
-python_extension_module(smt_switch)
-
 set(SETUP_PY_IN "${CMAKE_CURRENT_SOURCE_DIR}/setup.py.in")
 set(SETUP_PY "${CMAKE_CURRENT_BINARY_DIR}/setup.py")
-
 configure_file(${SETUP_PY_IN} ${SETUP_PY})
-file(WRITE ${CMAKE_CURRENT_BINARY_DIR}/__init__.py "")
 
-install(TARGETS smt_switch DESTINATION lib)
+add_subdirectory(smt_switch)

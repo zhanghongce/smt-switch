@@ -1,4 +1,4 @@
-/*********************                                                        */
+/*********************                                           */
 /*! \file unit-sort.cpp
 ** \verbatim
 ** Top contributors (to current version):
@@ -26,24 +26,15 @@ using namespace std;
 
 namespace smt_tests {
 
-TEST(SortKind, ToString)
-{
-  EXPECT_EQ(to_string(ARRAY), "ARRAY");
-  EXPECT_EQ(to_string(BOOL), "BOOL");
-  EXPECT_EQ(to_string(BV), "BV");
-  EXPECT_EQ(to_string(INT), "INT");
-  EXPECT_EQ(to_string(REAL), "REAL");
-  EXPECT_EQ(to_string(FUNCTION), "FUNCTION");
-  EXPECT_EQ(to_string(UNINTERPRETED), "UNINTERPRETED");
-}
-
 class UnitSortTests : public ::testing::Test,
-                      public ::testing::WithParamInterface<SolverEnum>
+                      public ::testing::WithParamInterface<SolverConfiguration>
 {
  protected:
   void SetUp() override
   {
     s = create_solver(GetParam());
+    s->set_opt("produce-models", "true");
+    s->set_opt("incremental", "true");
 
     boolsort = s->make_sort(BOOL);
     bvsort = s->make_sort(BV, 4);
@@ -76,6 +67,9 @@ TEST_P(UnitSortTests, SameSortDiffObj)
   EXPECT_EQ(bvsort->hash(), bvsort_2->hash());
   EXPECT_EQ(bvsort, bvsort_2);
 
+  Sort bvsort8 = s->make_sort(BV, 8);
+  EXPECT_NE(bvsort, bvsort8);
+
   Sort funsort_2 = s->make_sort(FUNCTION, { bvsort, bvsort_2 });
   EXPECT_EQ(funsort->hash(), funsort_2->hash());
   EXPECT_EQ(funsort, funsort_2);
@@ -93,6 +87,107 @@ TEST_P(UnitSortTests, SortParams)
   // not every solver supports querying function types for domain/codomain yet
 }
 
+TEST_P(UnitSortTests, UninterpretedSort)
+{
+  Sort uninterp_sort;
+  try
+  {
+    uninterp_sort = s->make_sort("declared-sort", 0);
+  }
+  catch (SmtException & e)
+  {
+    // if not supported, that's fine.
+    std::cout << "got exception when declaring sort: " << e.what() << std::endl;
+    return;
+  }
+
+  ASSERT_TRUE(uninterp_sort);
+  EXPECT_EQ(uninterp_sort->get_sort_kind(), UNINTERPRETED);
+  EXPECT_EQ(uninterp_sort->get_arity(), 0);
+
+  // Now try non-zero arity (not supported by very many solvers)
+  size_t num_params = 4;
+  Sort sort_cons;
+  try
+  {
+    sort_cons = s->make_sort("sort-con", num_params);
+  }
+  catch (SmtException & e)
+  {
+    // if not supported, that's fine.
+    std::cout << "got exception when declaring nonzero arity sort: " << e.what()
+              << std::endl;
+    // but CVC5 expected to support it
+    ASSERT_NE(s->get_solver_enum(), smt::CVC5);
+    return;
+  }
+
+  ASSERT_TRUE(sort_cons);
+  // Expecting an uninterpreted constructor sort
+  EXPECT_EQ(sort_cons->get_sort_kind(), UNINTERPRETED_CONS);
+  EXPECT_EQ(sort_cons->get_arity(), num_params);
+
+  EXPECT_THROW(s->make_sort(sort_cons, SortVec{ bvsort, bvsort, bvsort }),
+               IncorrectUsageException);
+
+  Sort param_sort =
+      s->make_sort(sort_cons, SortVec{ bvsort, bvsort, bvsort, bvsort });
+  SortVec param_sorts = param_sort->get_uninterpreted_param_sorts();
+  EXPECT_EQ(param_sorts.size(), num_params);
+  EXPECT_EQ(param_sorts[0], bvsort);
+}
+
+TEST_P(UnitSortTests, UninterpSortEquality)
+{
+  if (GetParam().is_logging_solver)
+  {
+    // need some additional fixes for is_value in LoggingSolver to handle
+    // uninterpreted sorts
+    return;
+  }
+
+  Sort uninterp_sort;
+  try
+  {
+    uninterp_sort = s->make_sort("uninterp-sort", 0);
+  }
+  catch (SmtException & e)
+  {
+    SolverConfiguration sc = GetParam();
+    SolverEnum se = sc.solver_enum;
+    std::cout << "got exception for SolverEnum: " << se << std::endl;
+    return;
+  }
+
+  Term x = s->make_symbol("x", uninterp_sort);
+  Term y = s->make_symbol("y", uninterp_sort);
+  ASSERT_EQ(x->get_sort(), uninterp_sort);
+  ASSERT_EQ(x->get_sort(), y->get_sort());
+
+  s->push();
+  s->make_term(Equal, x, y);
+  Result r = s->check_sat();
+  ASSERT_TRUE(r.is_sat());
+
+  Term xv = s->get_value(x);
+  Term yv = s->get_value(y);
+  s->pop();
+
+  ASSERT_EQ(xv, yv);
+
+  Term xeq = s->make_term(Equal, x, xv);
+  Term yeq = s->make_term(Equal, y, yv);
+
+  std::cout << "xeq: " << xeq << std::endl;
+  std::cout << "yeq: " << yeq << std::endl;
+
+  s->assert_formula(s->make_term(Distinct, x, y));
+  s->assert_formula(xeq);
+  s->assert_formula(yeq);
+  r = s->check_sat();
+  ASSERT_TRUE(r.is_unsat());
+}
+
 TEST_P(UnitSortArithTests, SameSortDiffObj)
 {
   Sort intsort_2 = s->make_sort(INT);
@@ -104,8 +199,18 @@ TEST_P(UnitSortArithTests, SameSortDiffObj)
   EXPECT_EQ(realsort, realsort_2);
 }
 
-INSTANTIATE_TEST_SUITE_P(ParameterizedUnitSortTests,
-                         UnitSortTests,
-                         testing::ValuesIn(available_solver_enums()));
+// One of the tests requries parsing values
+// of uninterpreted sorts.
+// This is not supported by the generic solver, and hence
+// it is excluded.
+INSTANTIATE_TEST_SUITE_P(
+    ParameterizedUnitSortTests,
+    UnitSortTests,
+    testing::ValuesIn(available_non_generic_solver_configurations()));
+
+INSTANTIATE_TEST_SUITE_P(ParameterizedUnitSortArithTests,
+                         UnitSortArithTests,
+                         testing::ValuesIn(filter_solver_configurations(
+                             { THEORY_INT, THEORY_REAL })));
 
 }  // namespace smt_tests

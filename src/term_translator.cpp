@@ -21,6 +21,7 @@
 #include "assert.h"
 
 #include "sort_inference.h"
+#include "utils.h"
 #include "term_translator.h"
 
 using namespace std;
@@ -28,7 +29,7 @@ using namespace std;
 namespace smt {
 
 // boolean ops
-const unordered_set<PrimOp> bool_ops({ And, Or, Xor, Not, Implies, Iff });
+const unordered_set<PrimOp> bool_ops({ And, Or, Xor, Not, Implies });
 
 const unordered_set<PrimOp> bv_ops({
     Concat,      Extract,     BVNot,  BVNeg,       BVAnd,        BVOr,
@@ -55,7 +56,33 @@ const unordered_map<PrimOp, PrimOp> bv_to_bool_ops({ { BVAnd, And },
                                                      { BVNot, Not },
                                                      { BVComp, Equal } });
 
-Sort TermTranslator::transfer_sort(const Sort & sort) const
+// helper function used for debugging asserts
+bool uses_uninterp_sort(const smt::Sort & sort)
+{
+  bool res = false;
+  SortKind sk = sort->get_sort_kind();
+  if (sk == UNINTERPRETED)
+  {
+    res = true;
+  }
+  else if (sk == FUNCTION)
+  {
+    for (auto s : sort->get_domain_sorts())
+    {
+      res |= uses_uninterp_sort(s);
+    }
+    res |= uses_uninterp_sort(sort->get_codomain_sort());
+  }
+  else if (sk == ARRAY)
+  {
+    res |= uses_uninterp_sort(sort->get_indexsort());
+    res |= uses_uninterp_sort(sort->get_elemsort());
+  }
+
+  return res;
+}
+
+Sort TermTranslator::transfer_sort(const Sort & sort)
 {
   SortKind sk = sort->get_sort_kind();
   if ((sk == INT) || (sk == REAL) || (sk == BOOL))
@@ -86,6 +113,23 @@ Sort TermTranslator::transfer_sort(const Sort & sort) const
     sorts.push_back(transfer_sort(sort->get_codomain_sort()));
     return solver->make_sort(sk, sorts);
   }
+  else if (sk == UNINTERPRETED)
+  {
+    assert(sort->get_arity() == 0);
+    string name = sort->get_uninterpreted_name();
+    auto it = uninterpreted_sorts.find(name);
+    if (it != uninterpreted_sorts.end())
+    {
+      // cache hit
+      return it->second;
+    }
+    else
+    {
+      Sort sort_con = solver->make_sort(name, 0);
+      uninterpreted_sorts[name] = sort_con;
+      return sort_con;
+    }
+  }
   else
   {
     throw SmtException("Failed to transfer sort: " + sort->to_string());
@@ -105,6 +149,7 @@ Term TermTranslator::transfer_term(const Term & term, bool allow_create_new_symb
   // assume it's already been processed
   // not just visited
   UnorderedTermSet visited;
+  TermVec children;
   TermVec cached_children;
   Term t;
   Sort s;
@@ -126,21 +171,44 @@ Term TermTranslator::transfer_term(const Term & term, bool allow_create_new_symb
       visited.insert(t);
       // need to visit it again
       to_visit.push_back(t);
-      for (auto c : t)
+
+      // insert in reverse order
+      // helps symbols be declared in same order
+      children.clear();
+      children.insert(children.end(), t->begin(), t->end());
+      for (auto it = children.rbegin(); it != children.rend(); it++)
       {
-        to_visit.push_back(c);
+        to_visit.push_back(*it);
       }
     }
     else
     {
       if (t->is_symbol())
       {
-        if (allow_create_new_symbols) {
-          s = transfer_sort(t->get_sort());
-          cache[t] = solver->make_symbol(t->to_string(), s);
-        } else {
-          throw SmtException("Try to create symbol : " + t->to_string() + " of type "
-                               + t->get_sort()->to_string() + ", which is not allowed.");
+        s = transfer_sort(t->get_sort());
+        string name = t->to_string();
+        try
+        {
+          Term sym = solver->get_symbol(name);
+          cache[t] = sym;
+          // the sort should already match the expected sort
+          // or be castable to the same sort
+          assert(
+              s == sym->get_sort() ||
+              // can't properly transfer uninterpreted sort, so ignore that case
+              // (no way to look up uninterpreted sort by name, so transfer_sort
+              //  would make a new sort with the same name)
+              // relying on short-circuit semantics so cast_term line not
+              // executed
+              uses_uninterp_sort(sym->get_sort())
+              || s == cast_term(sym, s)->get_sort());
+        }
+        catch (IncorrectUsageException & e)
+        {
+          if (!allow_create_new_symbols)
+            throw SmtException("Try to create symbol : " + t->to_string() + " of type "
+                     + t->get_sort()->to_string() + ", which is not allowed.");
+          cache[t] = solver->make_symbol(name, s);
         }
       }
       else if (t->is_param())
@@ -182,7 +250,8 @@ Term TermTranslator::transfer_term(const Term & term, bool allow_create_new_symb
           // allows us to transfer from a solver that doesn't alias sorts
           // to one that does alias sorts
           // the sort will be transferred again in value_from_smt2
-          cache[t] = value_from_smt2(t->to_string(), t->get_sort());
+          cache[t] = value_from_smt2(
+              t->print_value_as(t->get_sort()->get_sort_kind()), t->get_sort());
         }
       }
       else
@@ -217,17 +286,16 @@ Term TermTranslator::transfer_term(const Term & term, bool allow_create_new_symb
         {
           cache[t] = solver->make_term(t->get_op(), cached_children);
         }
-      } // some op ...
-    } // if (visited.find(t) == visited.end()) else ...
-  } // end of while
+      }
+    }
+  }
 
   assert(cache.find(term) != cache.end());
   // make sure the sort is as-expected and cast if not
   // for dealing with solvers that alias sorts
 
   return cache.at(term);
-} // end of Term TermTranslator::transfer_term(const Term & term)
-
+}
 
 Term TermTranslator::transfer_term(const Term & term, const SortKind sk)
 {
@@ -271,8 +339,31 @@ Term TermTranslator::transfer_term(const Term & term, const SortKind sk)
   }
 }
 
+std::string TermTranslator::infixize_rational(const std::string smtlib) const {
+  // smtlib: (/ up down)
+  // ind -- index
+  std::string op;
+  int ind_of_up_start = smtlib.find_first_of("/");
+  if (ind_of_up_start == std::string::npos) {
+    return smtlib;
+  }
+  ind_of_up_start += 2;
+  op = "/";
+  int ind_of_up_end = smtlib.find_first_of(' ', ind_of_up_start);
+  assert(ind_of_up_end != std::string::npos);
+  ind_of_up_end -= 1;
+  int ind_of_down_start = ind_of_up_end + 2;
+  int ind_of_down_end = smtlib.find_first_of(')', ind_of_down_start);
+  assert(ind_of_down_end != std::string::npos);
+  ind_of_down_end -= 1;
+  std::string new_up = smtlib.substr(ind_of_up_start, ind_of_up_end - ind_of_up_start +1);
+  std::string new_down = smtlib.substr(ind_of_down_start, ind_of_down_end - ind_of_down_start +1);
+  std::string new_string = new_up + " " + op + " " + new_down;
+  return new_string;
+}
+
 Term TermTranslator::value_from_smt2(const std::string val,
-                                     const Sort orig_sort) const
+                                     const Sort orig_sort)
 {
   SortKind sk = orig_sort->get_sort_kind();
   Sort sort = transfer_sort(orig_sort);
@@ -323,12 +414,14 @@ Term TermTranslator::value_from_smt2(const std::string val,
     if (val.substr(0, 2) == "(-")
     {
       std::string posval = val.substr(3, val.length() - 4);
+      posval = infixize_rational(posval);
       Term posterm = solver->make_term(posval, sort);
       return solver->make_term(Negate, posterm);
     }
     else
     {
-      return solver->make_term(val, sort);
+      std::string mval = infixize_rational(val);
+      return solver->make_term(mval, sort);
     }
   }
   // this check HAS to come after bit-vector check
@@ -470,7 +563,7 @@ Term TermTranslator::cast_op(Op op, const TermVec & terms) const
     casted_children.reserve(terms.size());
     casted_children.push_back(terms[0]);
     SortVec domain_sorts = funsort->get_domain_sorts();
-    assert(terms.size() + 1 == domain_sorts.size());
+    assert(terms.size() == domain_sorts.size() + 1);
     for (size_t i = 1; i < terms.size(); ++i)
     {
       casted_children.push_back(cast_term(terms[i], domain_sorts[i - 1]));

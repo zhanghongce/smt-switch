@@ -30,7 +30,7 @@ using namespace std;
 namespace smt_tests {
 
 class SelfTranslationTests : public ::testing::Test,
-                             public ::testing::WithParamInterface<SolverEnum>
+                             public ::testing::WithParamInterface<SolverConfiguration>
 {
  protected:
   void SetUp() override
@@ -49,7 +49,7 @@ class SelfTranslationTests : public ::testing::Test,
 };
 
 class SelfTranslationIntTests : public ::testing::Test,
-                                public ::testing::WithParamInterface<SolverEnum>
+                                public ::testing::WithParamInterface<SolverConfiguration>
 {
  protected:
   void SetUp() override
@@ -69,7 +69,7 @@ class SelfTranslationIntTests : public ::testing::Test,
 
 class TranslationTests
     : public ::testing::Test,
-      public ::testing::WithParamInterface<tuple<SolverEnum, SolverEnum>>
+      public ::testing::WithParamInterface<tuple<SolverConfiguration, SolverConfiguration>>
 {
  protected:
   void SetUp() override
@@ -119,7 +119,7 @@ TEST_P(SelfTranslationTests, BVTransfer)
   Term T2 = tt.transfer_term(T);
   ASSERT_EQ(T2, s2->make_term(true));
   Term two_2 = tt.transfer_term(two);
-  ASSERT_EQ(two_2, s2->make_term(2, bvsort8));
+  ASSERT_EQ(two_2, s2->make_term(2, s2->make_sort(BV, 8)));
   // ensure it can handle transfering again (even though it already built the
   // node)
   Term cached_constraint2 = constraint2;
@@ -178,9 +178,6 @@ TEST_P(TranslationTests, And)
   TermTranslator to_s2(s2);
 
   TermTranslator to_s1(s1);
-  UnorderedTermMap & cache = to_s1.get_cache();
-  cache[to_s2.transfer_term(a)] = a;
-  cache[to_s2.transfer_term(b)] = b;
 
   Term a_and_b_2 = to_s2.transfer_term(a_and_b);
   Term a_and_b_1 = to_s1.transfer_term(a_and_b_2);
@@ -193,9 +190,6 @@ TEST_P(TranslationTests, Equal)
   TermTranslator to_s2(s2);
 
   TermTranslator to_s1(s1);
-  UnorderedTermMap & cache = to_s1.get_cache();
-  cache[to_s2.transfer_term(a)] = a;
-  cache[to_s2.transfer_term(b)] = b;
 
   Term a_equal_b_2 = to_s2.transfer_term(a_equal_b);
   // need to specify expected sortkind
@@ -218,10 +212,6 @@ TEST_P(TranslationTests, Ite)
 
   TermTranslator to_s2(s2);
   TermTranslator to_s1(s1);
-  UnorderedTermMap & cache = to_s1.get_cache();
-  cache[to_s2.transfer_term(a)] = a;
-  cache[to_s2.transfer_term(x)] = x;
-  cache[to_s2.transfer_term(y)] = y;
 
   Term a_ite_x_y_2 = to_s2.transfer_term(a_ite_x_y);
   Term a_ite_x_y_1 = to_s1.transfer_term(a_ite_x_y_2);
@@ -239,9 +229,6 @@ TEST_P(TranslationTests, Concat)
 
   TermTranslator to_s2(s2);
   TermTranslator to_s1(s1);
-  UnorderedTermMap & cache = to_s1.get_cache();
-  cache[to_s2.transfer_term(x)] = x;
-  cache[to_s2.transfer_term(y)] = y;
 
   Term concat_term_2 = to_s2.transfer_term(concat_term);
   Term concat_term_1 = to_s1.transfer_term(concat_term_2);
@@ -258,8 +245,6 @@ TEST_P(TranslationTests, Extract)
 
   TermTranslator to_s2(s2);
   TermTranslator to_s1(s1);
-  UnorderedTermMap & cache = to_s1.get_cache();
-  cache[to_s2.transfer_term(a)] = a;
 
   Term ext_bv_a_2 = to_s2.transfer_term(ext_bv_a);
   // expect it to be a BV
@@ -274,6 +259,38 @@ TEST_P(TranslationTests, Extract)
   ASSERT_TRUE(r.is_unsat());
 }
 
+TEST_P(TranslationTests, UninterpretedSort)
+{
+  Sort uninterp_sort;
+  try
+  {
+    uninterp_sort = s1->make_sort("uninterp-sort", 0);
+    // need to fail if either solver doesn't support uninterpreted sorts
+    Sort dummy_sort = s2->make_sort("dummy", 0);
+  }
+  catch (SmtException & e)
+  {
+    // if this solver doesn't support uninterpreted sorts, that's fine
+    // just stop the test
+    return;
+  }
+
+  ASSERT_TRUE(uninterp_sort);
+  Sort ufsort = s1->make_sort(FUNCTION, { uninterp_sort, boolsort });
+  Term v = s1->make_symbol("v", uninterp_sort);
+  Term f = s1->make_symbol("f", ufsort);
+  Term fv = s1->make_term(Apply, f, v);
+
+  TermTranslator to_s2(s2);
+  TermTranslator to_s1(s1);
+
+  Term fv_2 = to_s2.transfer_term(fv);
+  EXPECT_EQ(fv_2->get_op(), Apply);
+
+  Term fv_1 = to_s1.transfer_term(fv_2);
+  EXPECT_EQ(fv, fv_1);
+}
+
 TEST_P(BoolArrayTranslationTests, Arrays)
 {
   Term f = s1->make_term(false);
@@ -284,37 +301,41 @@ TEST_P(BoolArrayTranslationTests, Arrays)
 
   TermTranslator to_s2(s2);
   TermTranslator to_s1(s1);
-  UnorderedTermMap & cache = to_s1.get_cache();
-  cache[to_s2.transfer_term(arr)] = arr;
-  cache[to_s2.transfer_term(x)] = x;
-  cache[to_s2.transfer_term(y)] = y;
 
   Term stores_2 = to_s2.transfer_term(stores);
   Term stores_1 = to_s1.transfer_term(stores_2);
   ASSERT_EQ(stores, stores_1);
 }
 
-INSTANTIATE_TEST_SUITE_P(ParameterizedSelfTranslationTests,
-                         SelfTranslationTests,
-                         testing::ValuesIn(filter_solver_enums({ TERMITER })));
+// All tests are instantiated with non-generic solver,
+// as genreic solvers do not support term translation
+// currently.
+
+INSTANTIATE_TEST_SUITE_P(
+    ParameterizedSelfTranslationTests,
+    SelfTranslationTests,
+    testing::ValuesIn(filter_non_generic_solver_configurations({ TERMITER })));
 
 INSTANTIATE_TEST_SUITE_P(
     ParameterizedSelfTranslationIntTests,
     SelfTranslationIntTests,
-    testing::ValuesIn(filter_solver_enums({ FULL_TRANSFER, THEORY_INT })));
+    testing::ValuesIn(filter_non_generic_solver_configurations(
+        { FULL_TRANSFER, THEORY_INT })));
 
 INSTANTIATE_TEST_SUITE_P(
     ParameterizedTranslationTests,
     TranslationTests,
-    testing::Combine(testing::ValuesIn(filter_solver_enums({ TERMITER })),
-                     testing::ValuesIn(filter_solver_enums({ TERMITER }))));
+    testing::Combine(testing::ValuesIn(filter_non_generic_solver_configurations(
+                         { TERMITER })),
+                     testing::ValuesIn(filter_non_generic_solver_configurations(
+                         { TERMITER }))));
 
 INSTANTIATE_TEST_SUITE_P(
     ParameterizedBoolArrayTranslationTests,
     BoolArrayTranslationTests,
-    testing::Combine(testing::ValuesIn(filter_solver_enums(
+    testing::Combine(testing::ValuesIn(filter_non_generic_solver_configurations(
                          { TERMITER, CONSTARR, ARRAY_FUN_BOOLS })),
-                     testing::ValuesIn(filter_solver_enums(
+                     testing::ValuesIn(filter_non_generic_solver_configurations(
                          { TERMITER, CONSTARR, ARRAY_FUN_BOOLS }))));
 
 }  // namespace smt_tests

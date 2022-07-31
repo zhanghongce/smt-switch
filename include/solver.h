@@ -73,6 +73,10 @@ class AbsSmtSolver
    */
   virtual Result check_sat_assuming(const TermVec & assumptions) = 0;
 
+  virtual Result check_sat_assuming_list(const TermList & assumptions);
+
+  virtual Result check_sat_assuming_set(const UnorderedTermSet & assumptions);
+
   /* Push contexts
    * SMTLIB: (push <num>)
    * @param num the number of contexts to push
@@ -84,6 +88,12 @@ class AbsSmtSolver
    * @param num the number of contexts to pop
    */
   virtual void pop(uint64_t num = 1) = 0;
+
+  /** Returns the current context level of the solver
+   *  based on the number of pushes/pops
+   *  @return context level
+   */
+  virtual uint64_t get_context_level() const = 0;
 
   /* Get the value of a term after check_sat returns a satisfiable result
    * SMTLIB: (get-value (<t>))
@@ -107,11 +117,9 @@ class AbsSmtSolver
    *  this function will populate the 'out' UnorderedTermSet with a subset
    *  of the assumption literals that are sufficient to make the assertions
    *  unsat.
-   *  SMTLIB: (get-unsat-assumptions) 
+   *  SMTLIB: (get-unsat-assumptions)
    */
-  virtual void get_unsat_core(UnorderedTermSet & out) = 0;
-
-  // virtual bool check_sat_assuming() const = 0;
+  virtual void get_unsat_assumptions(UnorderedTermSet & out) = 0;
 
   /* Make an uninterpreted sort
    * SMTLIB: (declare-sort <name> <arity>)
@@ -174,6 +182,15 @@ class AbsSmtSolver
    */
   virtual Sort make_sort(const SortKind sk, const SortVec & sorts) const = 0;
 
+  /* Create an uninterpreted sort
+   * @param sort_con a sort with SortKind UNINTERPRETED_CONS (must have
+   * nonzero arity)
+   * @param sorts a vector of sorts of size matching sort_con->get_arity()
+   * @return a Sort object
+   */
+  virtual Sort make_sort(const Sort & sort_con,
+                         const SortVec & sorts) const = 0;
+
   /* Create a datatype sort
    * @param d the Datatype Declaration
    * @return a Sort object
@@ -217,6 +234,25 @@ class AbsSmtSolver
    * @return the symbolic constant or function term
    */
   virtual Term make_symbol(const std::string name, const Sort & sort) = 0;
+
+  /** Look up a symbol by name.
+   *  If no symbol of that name has been declared, throws
+   *  IncorrectUsageException
+   *
+   *  Allows a user to look up a symbol by name. This can be very useful for term
+   *  translation, since we can look up symbols instead of keeping track of the
+   *  mapping via externally populated caches (in the case where the target
+   *  solver has already been used).
+   *
+   *  Note, solver backend deals with the implementation. The main motivation for
+   *  this is that each backend solver has to own the symbol table. If the symbol
+   *  table were stored in AbsSmtSolver then it would get destructed after the
+   *  backend solver which has bad refcounting implications for many solvers.
+   *
+   *  @param name the name of the symbol to look up
+   *  @return the Term representation of the corresponding symbol
+   */
+  virtual Term get_symbol(const std::string & name) = 0;
 
   /* Make a parameter term to be bound by a quantifier
    * @param name the name of the parameter
@@ -267,7 +303,7 @@ class AbsSmtSolver
    */
   virtual void reset() = 0;
 
-  /* Reset all assertions 
+  /* Reset all assertions
    * SMTLIB: (reset-assertions)
    */
   virtual void reset_assertions() = 0;
@@ -327,6 +363,17 @@ class AbsSmtSolver
    */
   virtual Term get_selector(const Sort & s, std::string con, std::string name) const = 0;
 
+  /** Create sorts for the corresponding DatatypeDecls.
+   *
+   *  @param decls the datatype decls
+   *  @return datatype sorts corresponding to the uninterpreted sort inputs
+   *
+   */
+  virtual SortVec make_datatype_sorts(
+      const std::vector<DatatypeDecl> & decls) const;
+
+  /** Convenience function that calls make_datatype_sorts with a single sort. */
+  Sort make_datatype_sort(const DatatypeDecl & decl) const;
 
   // Methods implemented at the abstract level
   // Note: These can be overloaded in the specific solver implementation for
@@ -340,6 +387,9 @@ class AbsSmtSolver
    */
   virtual Term substitute(const Term term,
                           const UnorderedTermMap & substitution_map) const;
+
+  virtual TermVec substitute_terms(
+      const TermVec & terms, const UnorderedTermMap & substitution_map) const;
 
   // extra methods -- not required
 
@@ -367,6 +417,22 @@ class AbsSmtSolver
     throw NotImplementedException("Interpolants are not supported by this solver.");
   }
 
+  /** Compute a sequence interpolants given formulae
+   *  such that there is an interpolant between each adjacent formula in
+   *  the vector formulae
+   * @param formulae the formula terms to get sequence interpolants for
+   * @param out_I the vector to store sequence interpolants in
+   *              NOTE out_I can have null terms in it -- see below
+   * @return unsat    iff the interpolants were computed,
+   *         sat      iff the query was satisfiable,
+   *         unknown  iff any step of the interpolation failed
+   *                  in this case, out_I is still populated but any
+   *                  failed steps have null terms
+   *
+   */
+  virtual Result get_sequence_interpolants(const TermVec & formulae,
+                                           TermVec & out_I) const;
+
   SolverEnum get_solver_enum() { return solver_enum; };
 
  protected:
@@ -374,4 +440,3 @@ class AbsSmtSolver
 };
 
 }  // namespace smt
-
