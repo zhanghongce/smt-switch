@@ -18,6 +18,10 @@
 
 #include "utils.h"
 
+#include <stdexcept>
+#include <limits>
+
+
 namespace smt {
 
 /* cvc5 Op mappings */
