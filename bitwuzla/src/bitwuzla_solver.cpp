@@ -220,13 +220,18 @@ void BzlaSolver::get_unsat_assumptions(UnorderedTermSet & out)
 
 void BzlaSolver::get_unsat_assumptions(TermList & out)
 {
-  size_t size;
-  const BitwuzlaTerm ** bcore = bitwuzla_get_unsat_assumptions(bzla, &size);
-  for (size_t i = 0; i < size; ++i)
+  std::vector<bitwuzla::Term> bcore;
+  try
   {
-    assert(*bcore);
-    out.push_back(make_shared<BzlaTerm>(*bcore));
-    bcore++;
+    bcore = get_bitwuzla()->get_unsat_assumptions();
+  }
+  catch (std::exception & e)
+  {
+    throw InternalSolverException(e.what());
+  }
+  for (auto && elt : bcore)
+  {
+    out.push_back(std::make_shared<BzlaTerm>(elt));
   }
 }
 
