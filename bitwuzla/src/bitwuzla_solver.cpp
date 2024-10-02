@@ -209,6 +209,18 @@ void BzlaSolver::get_unsat_assumptions(UnorderedTermSet & out)
   }
 }
 
+void BzlaSolver::get_unsat_assumptions(TermList & out)
+{
+  size_t size;
+  const BitwuzlaTerm ** bcore = bitwuzla_get_unsat_assumptions(bzla, &size);
+  for (size_t i = 0; i < size; ++i)
+  {
+    assert(*bcore);
+    out.push_back(make_shared<BzlaTerm>(*bcore));
+    bcore++;
+  }
+}
+
 Sort BzlaSolver::make_sort(const string name, uint64_t arity) const
 {
   throw NotImplementedException(

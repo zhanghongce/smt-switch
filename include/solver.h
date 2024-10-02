@@ -121,6 +121,8 @@ class AbsSmtSolver
    */
   virtual void get_unsat_assumptions(UnorderedTermSet & out) = 0;
 
+  virtual void get_unsat_assumptions(TermList & out);
+
   /* Make an uninterpreted sort
    * SMTLIB: (declare-sort <name> <arity>)
    * @param name the name of the sort
