@@ -24,7 +24,7 @@
 #include <unordered_set>
 #include <vector>
 
-#include "api/cpp/cvc5.h"
+#include "cvc5/cvc5.h"
 #include "cvc5_datatype.h"
 #include "cvc5_sort.h"
 #include "cvc5_term.h"
@@ -100,6 +100,8 @@ class Cvc5Solver : public AbsSmtSolver
 
   Term make_term(bool b) const override;
   Term make_term(int64_t i, const Sort & sort) const override;
+  Term make_term(const std::string& s, bool useEscSequences, const Sort & sort) const override;
+  Term make_term(const std::wstring& s, const Sort & sort) const override;
   Term make_term(const std::string val,
                  const Sort & sort,
                  uint64_t base = 10) const override;
@@ -127,7 +129,7 @@ class Cvc5Solver : public AbsSmtSolver
   // getters for solver-specific objects
   // for interacting with third-party cvc5-specific software
   ::cvc5::Solver & get_cvc5_solver() { return solver; };
-
+  
  protected:
   ::cvc5::Solver solver;
 

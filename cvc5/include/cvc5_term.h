@@ -16,7 +16,7 @@
 
 #pragma once
 
-#include "api/cpp/cvc5.h"
+#include "cvc5/cvc5.h"
 #include "term.h"
 #include "utils.h"
 
@@ -64,6 +64,7 @@ class Cvc5Term : public AbsTerm
   bool is_symbolic_const() const override;
   bool is_value() const override;
   virtual std::string to_string() override;
+  virtual std::wstring getStringValue() const override;
   uint64_t to_int() const override;
   /** Iterators for traversing the children
    */

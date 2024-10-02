@@ -16,6 +16,7 @@
 
 #pragma once
 
+#include <cstdint>
 #include <iostream>
 #include <string>
 #include <utility>
@@ -97,6 +98,20 @@ enum PrimOp
   // BitVector Conversion
   BV_To_Nat,
   Int_To_BV,
+  // Strings
+  StrLt,
+  StrLeq,
+  StrLen,
+  StrConcat,
+  StrSubstr,
+  StrAt,
+  StrContains,
+  StrIndexof,
+  StrReplace,
+  StrReplaceAll,
+  StrPrefixof,
+  StrSuffixof,
+  StrIsDigit,
   /* Array Theory */
   Select,
   Store,
@@ -181,7 +196,7 @@ namespace std
 namespace smt {
 // ops that can be applied to n arguments
 const std::unordered_set<PrimOp> variadic_ops(
-    { And, Or, Xor, Plus, BVAnd, BVOr, BVAdd });
+    { And, Or, Xor, Plus, Mult, BVAnd, BVOr, BVAdd, Concat });
 
 bool is_variadic(PrimOp po);
 }  // namespace smt
