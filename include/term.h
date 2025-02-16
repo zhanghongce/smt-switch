@@ -14,6 +14,8 @@
 **
 **/
 
+// IWYU pragma: private, include "smt.h"
+
 #pragma once
 
 #include <iostream>
@@ -195,4 +197,3 @@ namespace std
     }
   };
 }
-
