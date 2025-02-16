@@ -24,14 +24,15 @@ endif()
 
 find_library(POLYLIB REQUIRED
              NAMES libpicpoly.a
-             PATHS "${CVC5_HOME}/build/deps/lib")
+             PATHS "${CVC5_HOME}/lib")
 
 find_library(POLYLIBXX REQUIRED
              NAMES libpicpolyxx.a
-             PATHS "${CVC5_HOME}/build/deps/lib")
+             PATHS "${CVC5_HOME}/lib")
 
 find_library(CADICAL REQUIRED
              NAMES libcadical.a libcadical.so libcadical.dylib
+             PATHS "${CVC5_HOME}/lib"
              )
 
 target_link_libraries(smt-switch-cvc5 "${CVC5_HOME}/build/src/libcvc5.a")
@@ -50,7 +51,7 @@ if (SMT_SWITCH_LIB_TYPE STREQUAL STATIC)
     COMMAND
       mkdir ssc-working && cd ssc-working &&
       # create new static library that combines them all
-      ${PROJECT_SOURCE_DIR}/scripts/repack-static-lib.sh "$<TARGET_FILE_NAME:smt-switch-cvc5>" "${CVC5_HOME}/build/src/libcvc5.a" "${POLYLIBXX}" "${POLYLIB}" "${CADICAL}" "../$<TARGET_FILE_NAME:smt-switch-cvc5>" &&
+      ${PROJECT_SOURCE_DIR}/scripts/repack-static-lib.sh "$<TARGET_FILE_NAME:smt-switch-cvc5>" "${CVC5_HOME}/lib/libcvc5.a" "${POLYLIBXX}" "${POLYLIB}" "${CADICAL}" "../$<TARGET_FILE_NAME:smt-switch-cvc5>" &&
       # replace the original one
       mv "$<TARGET_FILE_NAME:smt-switch-cvc5>" "../$<TARGET_FILE_NAME:smt-switch-cvc5>" &&
       # now clean up the temporary directory
