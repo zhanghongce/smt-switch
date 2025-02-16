@@ -35,8 +35,8 @@ find_library(CADICAL REQUIRED
              PATHS "${CVC5_HOME}/lib"
              )
 
-target_link_libraries(smt-switch-cvc5 "${CVC5_HOME}/build/src/libcvc5.a")
-target_link_libraries(smt-switch-cvc5 "${CVC5_HOME}/build/src/parser/libcvc5parser.a")
+target_link_libraries(smt-switch-cvc5 "${CVC5_HOME}/lib/libcvc5.a")
+target_link_libraries(smt-switch-cvc5 "${CVC5_HOME}/lib/libcvc5parser.a")
 target_link_libraries(smt-switch-cvc5 "${POLYLIBXX}")
 target_link_libraries(smt-switch-cvc5 "${POLYLIB}")
 target_link_libraries(smt-switch-cvc5 "${CADICAL}")
