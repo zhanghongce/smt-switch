@@ -7,7 +7,7 @@ option (SYSTEM_GTEST "Should we try to use the system GTest" ON)
 
 if (SYSTEM_GTEST)
   # try finding a system installation of googletest
-  find_package(GTest 1.12 CONFIG)
+  find_package(GTest 1.11 CONFIG)
 else()
   set(GTest_FOUND FALSE)
 endif()
