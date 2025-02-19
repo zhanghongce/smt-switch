@@ -26,7 +26,7 @@ jobs:
     runs-on: ${{ matrix.os}}
 
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
 
       - name: Install Packages (Linux)
         if: runner.os == 'Linux'
@@ -44,7 +44,6 @@ jobs:
         run: |
           brew update
           brew install \
-            gmp \
             gperf \
             ninja \
             ${{ matrix.extra_macos_packages }}
@@ -57,7 +56,7 @@ jobs:
         run: |
           python3 -m venv ./.venv
           source ./.venv/bin/activate
-          python3 -m pip install Cython==0.29.*
+          python3 -m pip install 'cython>=3.0.5,<4'
           python3 -m pip install \
             pytest \
             scikit-build \
