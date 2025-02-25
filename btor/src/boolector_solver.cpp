@@ -659,6 +659,10 @@ Term BoolectorSolver::make_symbol(const std::string name, const Sort & sort)
 Term BoolectorSolver::get_symbol(const std::string & name)
 {
   auto it = symbol_table.find(name);
+  if (it == symbol_table.end() && name.length() > 2 && name.front() == '|' && name.back() == '|') {
+    auto striped_name = name.substr(1, name.length()-2);
+    it = symbol_table.find(striped_name);
+  }
   if (it == symbol_table.end())
   {
     throw IncorrectUsageException("Symbol named " + name + " does not exist.");

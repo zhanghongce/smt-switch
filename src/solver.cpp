@@ -68,6 +68,7 @@ Term AbsSmtSolver::substitute(const Term term,
     {
       // doesn't get updated yet, just marking as visited
       cache[t] = t;
+      // std::cout << "inserting " << t->to_string() <<std::endl;
       to_visit.push_back(t);
       for (auto c : t)
       {
@@ -75,18 +76,27 @@ Term AbsSmtSolver::substitute(const Term term,
       }
     }
     else
-    {
-      cached_children.clear();
-      for (auto c : t)
-      {
-        cached_children.push_back(cache.at(c));
-      }
+    { 
+      if (substitution_map.find(t) == substitution_map.end()) {
+        cached_children.clear();
+        for (auto c : t)
+        {
+          // std::cout << "finding " << c->to_string() <<std::endl;
+          cached_children.push_back(cache.at(c));
+          // std::cout << "found"  <<std::endl;
+        }
 
-      // const arrays have children but don't need to be rebuilt
-      // (they're constructed in a particular way anyway)
-      if (cached_children.size() && !t->is_value())
-      {
-        cache[t] = make_term(t->get_op(), cached_children);
+        // const arrays have children but don't need to be rebuilt
+        // (they're constructed in a particular way anyway)
+        if (cached_children.size() && !t->is_value())
+        {
+          //HZ debug
+          // std::cout << "make_term (" << (t->get_op().to_string()) << ",\n";
+          // for (const auto & c : cached_children)
+          //   std::cout << " (*) " << c->to_string() << "\n";
+
+          cache[t] = make_term(t->get_op(), cached_children);
+        }
       }
     }
   }
