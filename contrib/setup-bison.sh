@@ -1,7 +1,9 @@
 #!/bin/bash
+set -e
 
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 DEPS=$DIR/../deps
+VERSION=3.8.2
 
 mkdir -p $DEPS
 
@@ -11,17 +13,17 @@ if [ -d "$DEPS/bison" ]; then
     exit 1
 fi
 
-curl http://ftp.gnu.org/gnu/bison/bison-3.7.tar.xz --output $DEPS/bison-3.7.tar.xz
+curl http://ftp.gnu.org/gnu/bison/bison-$VERSION.tar.xz --output $DEPS/bison-$VERSION.tar.xz
 
-if [ ! -f "$DEPS/bison-3.7.tar.xz" ]; then
-    echo "It seems like downloading bison to $DEPS/bison-3.7.tar.xz failed"
+if [ ! -f "$DEPS/bison-$VERSION.tar.xz" ]; then
+    echo "It seems like downloading bison to $DEPS/bison-$VERSION.tar.xz failed"
     exit 1
 fi
 
 cd $DEPS
-tar -xf bison-3.7.tar.xz
-rm bison-3.7.tar.xz
-mv ./bison-3.7 ./bison
+tar -xf bison-$VERSION.tar.xz
+rm bison-$VERSION.tar.xz
+mv ./bison-$VERSION ./bison
 cd bison
 mkdir bison-install
 ./configure --prefix $DEPS/bison/bison-install --exec-prefix $DEPS/bison/bison-install

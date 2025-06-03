@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.1)
+cmake_minimum_required(VERSION 3.5)
 
 project(smt-switch)
 
@@ -13,7 +13,7 @@ set(INCLUDE_DIRS
   "${PROJECT_SOURCE_DIR}/include")
 
 # add to search path for find_package
-list(APPEND CMAKE_PREFIX_PATH "${PROJECT_SOURCE_DIR}/deps")
+list(APPEND CMAKE_PREFIX_PATH "${PROJECT_SOURCE_DIR}/deps/install")
 
 if (NOT SMT_SWITCH_LIB_TYPE)
   set(SMT_SWITCH_LIB_TYPE SHARED)
@@ -150,14 +150,15 @@ endif (BUILD_BTOR)
 option (BUILD_BITWUZLA
   "Should we build the libraries for bitwuzla" OFF)
 if (BUILD_BITWUZLA)
-  if (NOT DEFINED BITWUZLA_HOME)
-    set(BITWUZLA_HOME "${PROJECT_SOURCE_DIR}/deps/bitwuzla")
+  if (NOT DEFINED BITWUZLA_DIR)
+    # default location if using contrib/setup-bitwuzla.sh
+    # will also search global paths
+    set (BITWUZLA_DIR "${PROJECT_SOURCE_DIR}/deps/install")
   endif()
   add_subdirectory (bitwuzla)
   set (SOLVER_BACKEND_LIBS ${SOLVER_BACKEND_LIBS} smt-switch-bitwuzla)
 
   add_definitions(-DBUILD_BITWUZLA)
-  add_definitions(-DBITWUZLA_HOME=${BITWUZLA_HOME})
 endif (BUILD_BITWUZLA)
 
 
@@ -196,7 +197,9 @@ option (BUILD_Z3
   "Should we build the libraries for z3" OFF)
 
 if (BUILD_Z3)
-  set(Z3_HOME "${PROJECT_SOURCE_DIR}/deps/z3")
+  if (NOT DEFINED Z3_HOME)
+    set(Z3_HOME "${PROJECT_SOURCE_DIR}/deps/z3")
+  endif()
   add_subdirectory (z3)
   set (SOLVER_BACKEND_LIBS ${SOLVER_BACKEND_LIBS} smt-switch-z3)
 
